@@ -76,6 +76,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="LibDisk.cc" />
+    <ClCompile Include="LibFS.cc" />
+    <ClCompile Include="main.cc" />
+    <ClCompile Include="smallmain.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="LibDisk.h" />
+    <ClInclude Include="LibFS.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

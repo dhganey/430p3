@@ -18,7 +18,7 @@
 #endif
 // a few disk parameters
 #define SECTOR_SIZE  512
-#define NUM_SECTORS  10000 
+#define NUM_SECTORS  1000
 
 // disk errors
 typedef enum {

@@ -1,15 +1,16 @@
 #include "LibFS.h"
 #include "LibDisk.h"
 
-#include<string>
+#include <string>
+#include <vector>
 
 // global errno value here
 int osErrno;
 
-//const resources
-char* const magicString = "666";
+//resources
+char* magicString = "666";
 const int numInodes = 250;
-const int numDataBlocks = 9744; // TODO COME BACK TO THIS
+const int numDataBlocks = 746;
 
 //sector "pointer" offsets
 const int superblockOffset = 0;
@@ -17,14 +18,27 @@ const int inodeOffset = 1;
 const int dataOffset = 2;
 
 //bitmaps
-char* inodeBitmap;
-char* dataBitmap;
+char* inodeBitmap = new char[numInodes];
+char* dataBitmap = new char[numDataBlocks];
 
 //structs
-typedef struct dataBlock
+
+typedef struct superblock
 {
-    char data[SECTOR_SIZE];
-} DataBlock;
+    char magic[3];
+} Superblock;
+
+typedef struct inode
+{
+    int fileType; //0 represents file, 1 is a directory
+    int fileSize; //in bytes
+    int pointers[30];
+} Inode;
+
+typedef struct inodeSector
+{
+    Inode nodes[4];
+} InodeSector;
 
 //============ Helper Functions ============
 int
@@ -34,43 +48,15 @@ Create_New_Disk(char* path)
 
     //prep the superblock
     //superblock contains "666" followed by garbage
-    char* superString = new char[SECTOR_SIZE];
-    superString[0] = '6';
-    superString[1] = '6';
-    superString[2] = '6';
-
-    ok = Disk_Write(superblockOffset, superString);
+    ok = Disk_Write(superblockOffset, magicString);
     if (ok == -1)
     {
         osErrno = E_CREATE;
         return ok;
     }
     
-    //prep the bitmaps
-    inodeBitmap = new char[numInodes];
-    for (int i = 0; i < numInodes; i++)
-    {
-        inodeBitmap[i] = 0;
-    }
-    dataBitmap = new char[numDataBlocks];
-    for (int i = 0; i < numDataBlocks; i++)
-    {
-        dataBitmap[i] = 0;
-    }
-
-    //put the bitmaps on the disk
-    ok = File_Write(inodeOffset, inodeBitmap, sizeof(inodeBitmap));
-    if (ok == -1)
-    {
-        osErrno = E_CREATE;
-        return ok;
-    }
-    ok = File_Write(dataOffset, dataBitmap, sizeof(dataBitmap));
-    if (ok == -1)
-    {
-        osErrno = E_CREATE;
-        return ok;
-    }
+    ok = Disk_Write(inodeOffset, inodeBitmap);
+    ok = Disk_Write(dataOffset, dataBitmap); //TODO this must be able to write across multiple sections!
 
     //create the root directory
     ok = Dir_Create("/");
@@ -114,18 +100,19 @@ FS_Boot(char *path)
         Disk_Load(path);
 
         //check that size is correct and superblock accurate per section 3.5
-        char* receivingBuffer = new char[3];
+        char* receivingBuffer = new char[SECTOR_SIZE];
         Disk_Read(0, receivingBuffer);
-        if (strcmp(receivingBuffer, magicString) != 0)
+        char* loadedSuper = ((Superblock*) receivingBuffer)->magic;
+        if (strcmp(loadedSuper, magicString) != 0)
         {
             printf("Superblock magic number validation failed");
             osErrno = E_GENERAL;
             return -1;
         }
 
-        //retrieve the bitmaps from disk
+        //populate the bitmaps
         Disk_Read(inodeOffset, inodeBitmap);
-        Disk_Read(dataOffset, dataBitmap); //TODO THIS WILL NOT WORK, THIS READS ONLY THE FIRST SECTOR
+        Disk_Read(dataOffset, dataBitmap);
     }
 
     return 0;
@@ -194,6 +181,32 @@ int
 Dir_Create(char *path)
 {
     printf("Dir_Create %s\n", path);
+    
+    std::string delimiter = "/";
+    //string tokenizer from http://stackoverflow.com/questions/14265581/parse-split-a-string-in-c-using-string-delimiter-standard-c
+    size_t pos = 0;
+    std::string token;
+    std::vector<std::string> pathVec;
+    std::string pathStr(path);
+    while ((pos = pathStr.find(delimiter)) != std::string::npos)
+    {
+        token = pathStr.substr(0, pos);
+        pathVec.push_back(std::string(token));
+        pathStr.erase(0, pos + delimiter.length());
+    }
+
+    //special case--first directory
+    if (pathStr.compare(delimiter) == 0)
+    {
+        //we should be able to use the very first inode spot
+       //TODO continue here
+
+    }
+    else //otherwise, start at the root and find the appropriate spot
+    {
+
+    }
+
     return 0;
 }
 

@@ -8,7 +8,7 @@
 int osErrno;
 
 char* magicString = "666";
-const int NUM_INODES = 250;
+const int NUM_INODES = 1000;
 const int NUM_DATA_BLOCKS = 746;
 const int MAX_FILES = 100;
 const int NUM_DIRECTORIES_PER_BLOCK = 16;
@@ -94,13 +94,15 @@ int findAndFillAvailableDataBlock()
         if (dataBitmap[i] == '0')
         {
             dataBitmap[i] = '1';
-            return i + FIRST_DATABLOCK_OFFSET;
+            return i;
         }
     }
 
     return -1;
 }
 
+//Looks through the inode bitmap to find a spot
+//Fills the spot and returns the spot it found
 int findAndFillAvailableInodeBlock()
 {
     for (int i = 0; i < NUM_INODES; i++)
@@ -108,7 +110,7 @@ int findAndFillAvailableInodeBlock()
         if (inodeBitmap[i] == '0')
         {
             inodeBitmap[i] = '1';
-            return i + ROOT_INODE_OFFSET;
+            return i;
         }
     }
 
@@ -250,13 +252,13 @@ Dir_Create(char *path)
         
         //there's nothing in the directory, so leave it as all 0's
 
-        int inodePos = findAndFillAvailableInodeBlock(); //this should be the same as ROOT_INODE_OFFSET in this case
+        int inodePos = findAndFillAvailableInodeBlock();
         int dataPos = findAndFillAvailableDataBlock();
 
         inodeBlock[0].pointers[0] = dataPos; //point to the data block allocated
 
-        Disk_Write(inodePos, (char*)inodeBlock);
-        Disk_Write(dataPos, (char*)directoryBlock);
+        Disk_Write(inodePos + ROOT_INODE_OFFSET, (char*)inodeBlock);
+        Disk_Write(dataPos + FIRST_DATABLOCK_OFFSET, (char*)directoryBlock);
     }
     else //otherwise, start at the root and find the appropriate spot
     {

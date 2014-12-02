@@ -7,19 +7,26 @@
 // global errno value here
 int osErrno;
 
-//resources
 char* magicString = "666";
-const int numInodes = 250;
-const int numDataBlocks = 746;
+const int NUM_INODES = 250;
+const int NUM_DATA_BLOCKS = 746;
+const int MAX_FILES = 100;
+const int NUM_DIRECTORIES_PER_BLOCK = 16;
+const int NUM_INODES_PER_BLOCK = 4;
+const int NUM_POINTERS = 30;
+
+char* bootPath; //we'll populate this after boot so we can call sync
 
 //sector "pointer" offsets
-const int superblockOffset = 0;
-const int inodeOffset = 1;
-const int dataOffset = 2;
+const int SUPER_BLOCK_OFFSET = 0;
+const int INODE_BITMAP_OFFSET = 1;
+const int DATA_BITMAP_OFFSET = 2;
+const int ROOT_INODE_OFFSET = 4; //skip 1 for data bitmap 2
+const int FIRST_DATABLOCK_OFFSET = 255;
 
 //bitmaps
-char* inodeBitmap = new char[numInodes];
-char* dataBitmap = new char[numDataBlocks];
+char* inodeBitmap = new char[NUM_INODES];
+char* dataBitmap = new char[NUM_DATA_BLOCKS];
 
 //structs
 
@@ -35,10 +42,12 @@ typedef struct inode
     int pointers[30];
 } Inode;
 
-typedef struct inodeSector
+typedef struct directoryentry
 {
-    Inode nodes[4];
-} InodeSector;
+    char name[16];
+    int inodeNum;
+    char garbage[12];
+} DirectoryEntry;
 
 //============ Helper Functions ============
 int
@@ -48,15 +57,15 @@ Create_New_Disk(char* path)
 
     //prep the superblock
     //superblock contains "666" followed by garbage
-    ok = Disk_Write(superblockOffset, magicString);
+    ok = Disk_Write(SUPER_BLOCK_OFFSET, magicString);
     if (ok == -1)
     {
         osErrno = E_CREATE;
         return ok;
     }
     
-    ok = Disk_Write(inodeOffset, inodeBitmap);
-    ok = Disk_Write(dataOffset, dataBitmap); //TODO this must be able to write across multiple sections!
+    ok = Disk_Write(INODE_BITMAP_OFFSET, inodeBitmap);
+    ok = Disk_Write(DATA_BITMAP_OFFSET, dataBitmap); //TODO this must be able to write across multiple sections!
 
     //create the root directory
     ok = Dir_Create("/");
@@ -74,6 +83,36 @@ Create_New_Disk(char* path)
     }
 
     return ok;
+}
+
+//Looks through the data bitmap to find a spot
+//Fills the spot and returns the spot it found
+int findAndFillAvailableDataBlock()
+{
+    for (int i = 0; i < NUM_DATA_BLOCKS; i++)
+    {
+        if (dataBitmap[i] == '0')
+        {
+            dataBitmap[i] = '1';
+            return i + FIRST_DATABLOCK_OFFSET;
+        }
+    }
+
+    return -1;
+}
+
+int findAndFillAvailableInodeBlock()
+{
+    for (int i = 0; i < NUM_INODES; i++)
+    {
+        if (inodeBitmap[i] == '0')
+        {
+            inodeBitmap[i] = '1';
+            return i + ROOT_INODE_OFFSET;
+        }
+    }
+
+    return -1;
 }
 
 //============ API Functions ===============
@@ -111,8 +150,8 @@ FS_Boot(char *path)
         }
 
         //populate the bitmaps
-        Disk_Read(inodeOffset, inodeBitmap);
-        Disk_Read(dataOffset, dataBitmap);
+        Disk_Read(INODE_BITMAP_OFFSET, inodeBitmap);
+        Disk_Read(DATA_BITMAP_OFFSET, dataBitmap);
     }
 
     return 0;
@@ -122,6 +161,9 @@ int
 FS_Sync()
 {
     printf("FS_Sync\n");
+
+    Disk_Save(bootPath);
+
     return 0;
 }
 
@@ -198,13 +240,66 @@ Dir_Create(char *path)
     //special case--first directory
     if (pathStr.compare(delimiter) == 0)
     {
-        //we should be able to use the very first inode spot
-       //TODO continue here
+        //create the initial inode
+        Inode* inodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode)); //allocate a block full of inodes
+        inodeBlock[0].fileType = 1; //directory
+        inodeBlock[0].fileSize = 0; //nothing in it
+        
+        //create the actual directory
+        DirectoryEntry* directoryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry)); //allocate a block full of entries, all bits are 0
+        
+        //there's nothing in the directory, so leave it as all 0's
 
+        int inodePos = findAndFillAvailableInodeBlock(); //this should be the same as ROOT_INODE_OFFSET in this case
+        int dataPos = findAndFillAvailableDataBlock();
+
+        inodeBlock[0].pointers[0] = dataPos; //point to the data block allocated
+
+        Disk_Write(inodePos, (char*)inodeBlock);
+        Disk_Write(dataPos, (char*)directoryBlock);
     }
     else //otherwise, start at the root and find the appropriate spot
     {
+        // example directory: /a/b/c
+        //pathVec should contain 3 things: a, b, c
+        //they're trying to create c in this case, so we want to iterate 2 times (to find a, and to find b)
 
+        int i = 0;
+        int inodePointer = ROOT_INODE_OFFSET;
+
+        while (i < pathVec.size())
+        {
+            //load the inode for the current directory
+            char* curDirInodeChar = new char[sizeof(Inode) * NUM_INODES_PER_BLOCK];
+            Disk_Read(inodePointer, curDirInodeChar);
+            Inode* curNode = (Inode*)curDirInodeChar;
+
+            for (int j = 0; j < NUM_INODES_PER_BLOCK; j++) //search all 4 inodes
+            {
+                Inode node = curNode[j];
+                int k = 0;
+                while (node.pointers[k] != 0)
+                {
+                    char* tempDataChar = new char[sizeof(DirectoryEntry)* NUM_DIRECTORIES_PER_BLOCK];
+                    Disk_Read(node.pointers[k], tempDataChar);
+                    DirectoryEntry* entries = (DirectoryEntry*)tempDataChar;
+
+                    for (int m = 0; m < NUM_DIRECTORIES_PER_BLOCK; m++) //search all returned directories
+                    {
+                        DirectoryEntry dir = entries[m];
+                        std::string name(dir.name);
+                        if (name.compare(pathVec.at(i)) == 0) //if we find it, then what?
+                        {
+                            //do something here, like recurse?
+                        }
+                    }
+
+                    k++;
+                }
+            }
+
+            i++;
+        }
     }
 
     return 0;

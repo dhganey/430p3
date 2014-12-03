@@ -64,9 +64,8 @@ Create_New_Disk(char* path)
         return ok;
     }
     
-    //TODO
-    //ok = Disk_Write(INODE_BITMAP_OFFSET, inodeBitmap);
-    //ok = Disk_Write(DATA_BITMAP_OFFSET, dataBitmap); //TODO this must be able to write across multiple sections!
+    ok = Disk_Write(INODE_BITMAP_OFFSET, (char*)inodeBitmap);
+    ok = Disk_Write(DATA_BITMAP_OFFSET, dataBitmap); //TODO this must be able to write across multiple sections!
 
     //create the root directory
     ok = Dir_Create("/");
@@ -116,6 +115,49 @@ int findAndFillAvailableDataBlock()
     }
 
     return -1;
+}
+
+//Given a bitset, convert it to a char*
+char* convertBitsetToChar(std::bitset<1000> set)
+{
+    char* retStr = new char[125];
+
+    std::string bitString(set.to_string());
+
+    for (int i = 0; i < 125; i++) //there are 125 chars, each representing 8 bits
+    {
+        int x = i * 8; //starting position
+        std::string subStr = bitString.substr(x, 8);
+        char c = (char)atoi(subStr.c_str());
+        retStr[i] = c;
+    }
+
+    return retStr;
+}
+
+//Given a c string, convert it to a bitset
+std::bitset<1000> convertCharToBitset(char* str)
+{
+    std::bitset<1000> retSet;
+    
+    for (int i = 0; i < 125; i++) //assume the string has the right num chars
+    {
+        //convert each char to binary
+        int x = str[i];
+        char buffer[8];
+        itoa(x, buffer, 2); //base 2
+
+        std::string bitStr(buffer);
+        for (int j = 0; j < 8; j++)
+        {
+            if (bitStr.at(j) == '1')
+            {
+                retSet.flip(i * 8 + j);
+            }
+        }
+    }
+
+    return retSet;
 }
 
 //============ API Functions ===============

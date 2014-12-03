@@ -29,6 +29,9 @@ typedef struct directoryentry
     char garbage[12];
 } DirectoryEntry;
 
+char inodeBitmap[NUM_CHARS];
+char dataBitmap[NUM_CHARS];
+
 //============ Helper Functions ============
 int
 Create_New_Disk(char* path)
@@ -44,9 +47,13 @@ Create_New_Disk(char* path)
         return ok;
     }
     
-    //TODO
-    //ok = Disk_Write(INODE_BITMAP_OFFSET, convertBitsetToChar(inodeBitmap));
-    //ok = Disk_Write(DATA_BITMAP_OFFSET, convertBitsetToChar(dataBitmap)); //TODO this must be able to write across multiple sections!
+    for (int i = 0; i < NUM_CHARS; i++)
+    {
+        inodeBitmap[i] = 0x00;
+        dataBitmap[i] = 0x00;
+    }
+    ok = Disk_Write(INODE_BITMAP_OFFSET, inodeBitmap);
+    ok = Disk_Write(DATA_BITMAP_OFFSET, dataBitmap); //TODO this must be able to write across multiple sections!
 
     //create the root directory
     ok = Dir_Create("/");
@@ -100,15 +107,9 @@ FS_Boot(char *path)
             return -1;
         }
 
-        //TODO read in the bitmaps
-        //char* tempInode = new char[NUM_CHARS];
-        //char* tempData = new char[NUM_CHARS];
-
-        //Disk_Read(INODE_BITMAP_OFFSET, tempInode);
-        //Disk_Read(DATA_BITMAP_OFFSET, tempData);
-
-        //inodeBitmap = convertCharToBitset(tempInode);
-        //dataBitmap = convertCharToBitset(tempData);
+        //read in the bitmaps
+        Disk_Read(INODE_BITMAP_OFFSET, inodeBitmap);
+        Disk_Read(DATA_BITMAP_OFFSET, dataBitmap);
     }
 
     return 0;

@@ -86,38 +86,6 @@ Create_New_Disk(char* path)
     return ok;
 }
 
-//Extracts the bit at position i from char input
-//From https://www.daniweb.com/software-development/c/threads/208234/unsigned-char-into-array-of-bits
-int extract(char input, int i)
-{
-    return (input >> i) & 0x01;
-}
-
-//Converts a char to a string, e.g. input 'a' is "01100001"
-std::string unpackChar(char c)
-{
-    std::string str;
-    for (int i = 0; i < 8; i++)
-    {
-        char* buf = new char[1];
-        itoa(extract(c, i), buf, 10);
-        str += std::string(buf);
-    }
-
-    //now we have a reversed string, so flip it
-    int i = 0; int j = 7;
-    for (int x = 0; x < 4; x++)
-    {
-        char temp = str.at(i);
-        str.at(i) = str.at(j);
-        str.at(j) = temp;
-        i++;
-        j--;
-    }
-
-    return str;
-}
-
 //Finds the first 0 in the inode bitmap
 //Changes it to a 1 and returns the index in the bitmap
 int findAndFillAvailableInodeBlock()

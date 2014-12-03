@@ -7,7 +7,6 @@
     
 #include <stdio.h>
 #include <stdlib.h>
-#include <bitset>
 #ifdef _WIN32
 #include <io.h>
 #else
@@ -31,9 +30,6 @@ const int INODE_BITMAP_OFFSET = 1;
 const int DATA_BITMAP_OFFSET = 2;
 const int ROOT_INODE_OFFSET = 4; //skip 1 for data bitmap 2
 const int FIRST_DATABLOCK_OFFSET = 255;
-
-std::bitset<NUM_INODES> inodeBitmap;
-std::bitset<NUM_INODES> dataBitmap;
 
 // used for errors
 extern int osErrno;
@@ -74,8 +70,5 @@ int Dir_Read(char *path, void *buffer, int size);
 int Dir_Unlink(char *path);
 
 //helper functions
-int findAndFillAvailableDataBlock();
-char* convertBitsetToChar(std::bitset<NUM_INODES> set);
-std::bitset<NUM_INODES> convertCharToBitset(char* str);
 
 #endif /* __LibFS_h__ */

@@ -4,29 +4,11 @@
 #include <string>
 #include <vector>
 #include <bitset>
+#include <iostream>
 
 // global errno value here
 int osErrno;
 
-char* magicString = "666";
-const int NUM_INODES = 1000;
-const int NUM_DATA_BLOCKS = 746;
-const int MAX_FILES = 1000;
-const int NUM_DIRECTORIES_PER_BLOCK = 16;
-const int NUM_INODES_PER_BLOCK = 4;
-const int NUM_POINTERS = 30;
-
-char* bootPath; //we'll populate this after boot so we can call sync
-
-//sector "pointer" offsets
-const int SUPER_BLOCK_OFFSET = 0;
-const int INODE_BITMAP_OFFSET = 1;
-const int DATA_BITMAP_OFFSET = 2;
-const int ROOT_INODE_OFFSET = 4; //skip 1 for data bitmap 2
-const int FIRST_DATABLOCK_OFFSET = 255;
-
-std::bitset<1000> inodeBitmap;
-std::bitset<1000> dataBitmap;
 
 //structs
 
@@ -64,8 +46,8 @@ Create_New_Disk(char* path)
         return ok;
     }
     
-    ok = Disk_Write(INODE_BITMAP_OFFSET, (char*)inodeBitmap);
-    ok = Disk_Write(DATA_BITMAP_OFFSET, dataBitmap); //TODO this must be able to write across multiple sections!
+    ok = Disk_Write(INODE_BITMAP_OFFSET, convertBitsetToChar(inodeBitmap));
+    ok = Disk_Write(DATA_BITMAP_OFFSET, convertBitsetToChar(dataBitmap)); //TODO this must be able to write across multiple sections!
 
     //create the root directory
     ok = Dir_Create("/");
@@ -118,29 +100,30 @@ int findAndFillAvailableDataBlock()
 }
 
 //Given a bitset, convert it to a char*
-char* convertBitsetToChar(std::bitset<1000> set)
+char* convertBitsetToChar(std::bitset<NUM_INODES> set)
 {
-    char* retStr = new char[125];
-
+    std::vector<char> charVec;
     std::string bitString(set.to_string());
 
-    for (int i = 0; i < 125; i++) //there are 125 chars, each representing 8 bits
+    for (int i = 0; i < NUM_CHARS; i++) //there are 125 chars, each representing 8 bits
     {
         int x = i * 8; //starting position
         std::string subStr = bitString.substr(x, 8);
-        char c = (char)atoi(subStr.c_str());
-        retStr[i] = c;
+        char c = strtol(subStr.c_str(), NULL, 2);
+        charVec.push_back(c);
     }
-
-    return retStr;
+    
+    char* chars = new char[NUM_CHARS];
+    std::copy(charVec.begin(), charVec.end(), chars);
+    return chars;
 }
 
 //Given a c string, convert it to a bitset
-std::bitset<1000> convertCharToBitset(char* str)
+std::bitset<NUM_INODES> convertCharToBitset(char* str)
 {
-    std::bitset<1000> retSet;
+    std::bitset<NUM_INODES> retSet;
     
-    for (int i = 0; i < 125; i++) //assume the string has the right num chars
+    for (int i = 0; i < NUM_CHARS; i++) //assume the string has the right num chars
     {
         //convert each char to binary
         int x = str[i];
@@ -194,9 +177,15 @@ FS_Boot(char *path)
             return -1;
         }
 
-        //TODOTODO populate the bitmaps
-        //Disk_Read(INODE_BITMAP_OFFSET, inodeBitmap);
-        //Disk_Read(DATA_BITMAP_OFFSET, dataBitmap);
+        //read in the bitmaps
+        char* tempInode = new char[NUM_CHARS];
+        char* tempData = new char[NUM_CHARS];
+
+        Disk_Read(INODE_BITMAP_OFFSET, tempInode);
+        Disk_Read(DATA_BITMAP_OFFSET, tempData);
+
+        inodeBitmap = convertCharToBitset(tempInode);
+        dataBitmap = convertCharToBitset(tempData);
     }
 
     return 0;
@@ -363,4 +352,23 @@ Dir_Unlink(char *path)
 {
     printf("Dir_Unlink\n");
     return 0;
+}
+
+int main()
+{
+    Disk_Init();
+
+    std::bitset<1000> setName;
+    setName.flip(2);
+    setName.flip(3);
+    setName.flip(7);
+
+    std::cout << setName.to_string();
+    std::cout << "\n\n\n";
+
+    char* chars = new char[125];
+    chars = convertBitsetToChar(setName);
+    std::bitset<1000> newSet = convertCharToBitset(chars);
+
+    std::cout << newSet.to_string();
 }

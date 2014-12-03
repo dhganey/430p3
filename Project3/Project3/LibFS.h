@@ -7,11 +7,34 @@
     
 #include <stdio.h>
 #include <stdlib.h>
+#include <bitset>
 #ifdef _WIN32
 #include <io.h>
 #else
 #include <unistd.h>
 #endif
+
+char* magicString = "666";
+const int NUM_INODES = 1000;
+const int NUM_CHARS = 125;
+const int NUM_DATA_BLOCKS = 746;
+const int MAX_FILES = 1000;
+const int NUM_DIRECTORIES_PER_BLOCK = 16;
+const int NUM_INODES_PER_BLOCK = 4;
+const int NUM_POINTERS = 30;
+
+char* bootPath; //we'll populate this after boot so we can call sync
+
+//sector "pointer" offsets
+const int SUPER_BLOCK_OFFSET = 0;
+const int INODE_BITMAP_OFFSET = 1;
+const int DATA_BITMAP_OFFSET = 2;
+const int ROOT_INODE_OFFSET = 4; //skip 1 for data bitmap 2
+const int FIRST_DATABLOCK_OFFSET = 255;
+
+std::bitset<NUM_INODES> inodeBitmap;
+std::bitset<NUM_INODES> dataBitmap;
+
 // used for errors
 extern int osErrno;
     
@@ -49,5 +72,10 @@ int Dir_Create(char *path);
 int Dir_Size(char *path);
 int Dir_Read(char *path, void *buffer, int size);
 int Dir_Unlink(char *path);
+
+//helper functions
+int findAndFillAvailableDataBlock();
+char* convertBitsetToChar(std::bitset<NUM_INODES> set);
+std::bitset<NUM_INODES> convertCharToBitset(char* str);
 
 #endif /* __LibFS_h__ */

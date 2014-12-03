@@ -73,6 +73,40 @@ Create_New_Disk(char* path)
     return ok;
 }
 
+//Finds the first 0 in the parameter bitmap, flips it, and returns the index
+int findAndFillAvailable(char* bitmap)
+{
+    for (int i = 0; i < NUM_CHARS; i++)
+    {
+        char c = bitmap[i];
+        // now we might have a char, e.g. 'a', which maps to 0110 0001
+        //check all 8 bits
+        //http://stackoverflow.com/questions/9531214/access-individual-bits-in-a-char-c
+        for (int j = 7; j >= 0; j--)
+        {
+            if (!(c >> j) & 1)
+            {
+                c |= 1 << j; //flip the bit
+                bitmap[i] = c;
+                return (i * 8) - (j - 7);
+                //TODO: decide here whether to return this, or simply i. The caller may just wish to know which block? not sure what this is used for
+            }
+        }
+    }
+
+    return -1;
+}
+
+int findAndFillAvailableInode()
+{
+    return findAndFillAvailable(inodeBitmap);
+}
+
+int findAndFillAvailableData()
+{
+    return findAndFillAvailable(dataBitmap);
+}
+
 //============ API Functions ===============
 int 
 FS_Boot(char *path)

@@ -1,5 +1,8 @@
 #include	<stdio.h>
 #include	<string.h>
+#include    <string>
+#include    <iostream>
+#include    <bitset>
 #include	<sys/stat.h>
 #include	<sys/types.h>
 #ifdef _WIN32

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <bitset>
 
 // global errno value here
 int osErrno;
@@ -10,7 +11,7 @@ int osErrno;
 char* magicString = "666";
 const int NUM_INODES = 1000;
 const int NUM_DATA_BLOCKS = 746;
-const int MAX_FILES = 100;
+const int MAX_FILES = 1000;
 const int NUM_DIRECTORIES_PER_BLOCK = 16;
 const int NUM_INODES_PER_BLOCK = 4;
 const int NUM_POINTERS = 30;
@@ -24,9 +25,8 @@ const int DATA_BITMAP_OFFSET = 2;
 const int ROOT_INODE_OFFSET = 4; //skip 1 for data bitmap 2
 const int FIRST_DATABLOCK_OFFSET = 255;
 
-//bitmaps
-char* inodeBitmap = new char[NUM_INODES];
-char* dataBitmap = new char[NUM_DATA_BLOCKS];
+std::bitset<1000> inodeBitmap;
+std::bitset<1000> dataBitmap;
 
 //structs
 
@@ -64,8 +64,9 @@ Create_New_Disk(char* path)
         return ok;
     }
     
-    ok = Disk_Write(INODE_BITMAP_OFFSET, inodeBitmap);
-    ok = Disk_Write(DATA_BITMAP_OFFSET, dataBitmap); //TODO this must be able to write across multiple sections!
+    //TODO
+    //ok = Disk_Write(INODE_BITMAP_OFFSET, inodeBitmap);
+    //ok = Disk_Write(DATA_BITMAP_OFFSET, dataBitmap); //TODO this must be able to write across multiple sections!
 
     //create the root directory
     ok = Dir_Create("/");
@@ -85,36 +86,48 @@ Create_New_Disk(char* path)
     return ok;
 }
 
-//Looks through the data bitmap to find a spot
-//Fills the spot and returns the spot it found
-int findAndFillAvailableDataBlock()
+//Extracts the bit at position i from char input
+//From https://www.daniweb.com/software-development/c/threads/208234/unsigned-char-into-array-of-bits
+int extract(char input, int i)
 {
-    for (int i = 0; i < NUM_DATA_BLOCKS; i++)
-    {
-        if (dataBitmap[i] == '0')
-        {
-            dataBitmap[i] = '1';
-            return i;
-        }
-    }
-
-    return -1;
+    return (input >> i) & 0x01;
 }
 
-//Looks through the inode bitmap to find a spot
-//Fills the spot and returns the spot it found
-int findAndFillAvailableInodeBlock()
+//Converts a char to a string, e.g. input 'a' is "01100001"
+std::string unpackChar(char c)
 {
-    for (int i = 0; i < NUM_INODES; i++)
+    std::string str;
+    for (int i = 0; i < 8; i++)
     {
-        if (inodeBitmap[i] == '0')
-        {
-            inodeBitmap[i] = '1';
-            return i;
-        }
+        char* buf = new char[1];
+        itoa(extract(c, i), buf, 10);
+        str += std::string(buf);
     }
 
-    return -1;
+    //now we have a reversed string, so flip it
+    int i = 0; int j = 7;
+    for (int x = 0; x < 4; x++)
+    {
+        char temp = str.at(i);
+        str.at(i) = str.at(j);
+        str.at(j) = temp;
+        i++;
+        j--;
+    }
+
+    return str;
+}
+
+//Finds the first 0 in the inode bitmap
+//Changes it to a 1 and returns the index in the bitmap
+int findAndFillAvailableInodeBlock()
+{
+    return 0;
+}
+
+int findAndFillAvailableDataBlock()
+{
+    return 0;
 }
 
 //============ API Functions ===============
@@ -151,9 +164,9 @@ FS_Boot(char *path)
             return -1;
         }
 
-        //populate the bitmaps
-        Disk_Read(INODE_BITMAP_OFFSET, inodeBitmap);
-        Disk_Read(DATA_BITMAP_OFFSET, dataBitmap);
+        //TODOTODO populate the bitmaps
+        //Disk_Read(INODE_BITMAP_OFFSET, inodeBitmap);
+        //Disk_Read(DATA_BITMAP_OFFSET, dataBitmap);
     }
 
     return 0;
@@ -252,13 +265,7 @@ Dir_Create(char *path)
         
         //there's nothing in the directory, so leave it as all 0's
 
-        int inodePos = findAndFillAvailableInodeBlock();
-        int dataPos = findAndFillAvailableDataBlock();
-
-        inodeBlock[0].pointers[0] = dataPos; //point to the data block allocated
-
-        Disk_Write(inodePos + ROOT_INODE_OFFSET, (char*)inodeBlock);
-        Disk_Write(dataPos + FIRST_DATABLOCK_OFFSET, (char*)directoryBlock);
+        //TODO REDO THE FINDING AND WRITING HERE
     }
     else //otherwise, start at the root and find the appropriate spot
     {
@@ -292,7 +299,7 @@ Dir_Create(char *path)
                         std::string name(dir.name);
                         if (name.compare(pathVec.at(i)) == 0) //if we find it, then what?
                         {
-                            //do something here, like recurse?
+                            // TODO do something here, like recurse?
                         }
                     }
 

@@ -90,12 +90,32 @@ Create_New_Disk(char* path)
 //Changes it to a 1 and returns the index in the bitmap
 int findAndFillAvailableInodeBlock()
 {
-    return 0;
+    for (int i = 0; i < inodeBitmap.size(); i++)
+    {
+        if (!inodeBitmap.test(i))
+        {
+            inodeBitmap.flip(i);
+            return i;
+        }
+    }
+
+    return -1;
 }
 
+//Finds the first 0 in the data bitmap
+//Changes it to a 1 and returns the index in the bitmap
 int findAndFillAvailableDataBlock()
 {
-    return 0;
+    for (int i = 0; i < dataBitmap.size(); i++)
+    {
+        if (!dataBitmap.test(i))
+        {
+            dataBitmap.flip(i);
+            return i;
+        }
+    }
+
+    return -1;
 }
 
 //============ API Functions ===============

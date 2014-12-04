@@ -29,8 +29,14 @@ typedef struct directoryentry
     char garbage[12];
 } DirectoryEntry;
 
-char inodeBitmap[NUM_CHARS];
-char dataBitmap[NUM_CHARS];
+typedef struct bitmap
+{
+    char bits[NUM_CHARS];
+    char garbage[SECTOR_SIZE - NUM_CHARS];
+} Bitmap;
+
+Bitmap* inodeBitmap;
+Bitmap* dataBitmap;
 
 //============ Helper Functions ============
 int
@@ -47,13 +53,7 @@ Create_New_Disk(char* path)
         return ok;
     }
     
-    for (int i = 0; i < NUM_CHARS; i++)
-    {
-        inodeBitmap[i] = 0x00;
-        dataBitmap[i] = 0x00;
-    }
-    ok = Disk_Write(INODE_BITMAP_OFFSET, inodeBitmap);
-    ok = Disk_Write(DATA_BITMAP_OFFSET, dataBitmap); //TODO this must be able to write across multiple sections!
+   //TODO initialize and write the bitmaps
 
     //create the root directory
     ok = Dir_Create("/");
@@ -71,40 +71,6 @@ Create_New_Disk(char* path)
     }
 
     return ok;
-}
-
-//Finds the first 0 in the parameter bitmap, flips it, and returns the index
-int findAndFillAvailable(char* bitmap)
-{
-    for (int i = 0; i < NUM_CHARS; i++)
-    {
-        char c = bitmap[i];
-        // now we might have a char, e.g. 'a', which maps to 0110 0001
-        //check all 8 bits
-        //http://stackoverflow.com/questions/9531214/access-individual-bits-in-a-char-c
-        for (int j = 7; j >= 0; j--)
-        {
-            if (!(c >> j) & 1)
-            {
-                c |= 1 << j; //flip the bit
-                bitmap[i] = c;
-                return (i * 8) - (j - 7);
-                //TODO: decide here whether to return this, or simply i. The caller may just wish to know which block? not sure what this is used for
-            }
-        }
-    }
-
-    return -1;
-}
-
-int findAndFillAvailableInode()
-{
-    return findAndFillAvailable(inodeBitmap);
-}
-
-int findAndFillAvailableData()
-{
-    return findAndFillAvailable(dataBitmap);
 }
 
 //============ API Functions ===============
@@ -141,9 +107,7 @@ FS_Boot(char *path)
             return -1;
         }
 
-        //read in the bitmaps
-        Disk_Read(INODE_BITMAP_OFFSET, inodeBitmap);
-        Disk_Read(DATA_BITMAP_OFFSET, dataBitmap);
+        //TODO populate the bitmaps
     }
 
     return 0;

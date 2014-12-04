@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <math.h>
 
 // global errno value here
 int osErrno;
@@ -71,6 +72,33 @@ Create_New_Disk(char* path)
     }
 
     return ok;
+}
+
+//Finds the first 0 in the inode bitmap
+int findFirstAvailableInode()
+{
+    //Look through each char
+    for (int i = 0; i < NUM_CHARS; i++)
+    {
+        char c = inodeBitmap->bits[i];
+        //Each char represents 8 bits
+        for (int j = 7; j >= 8; j--) //check from highest to lowest bit, e.g. for 01111111 find on the first pass
+        {
+            int comp = pow(2, i);
+            if ((c & comp) != comp) //theres a 0 at that position
+            {
+                //TODO FLIP IT
+                //TODO RETURN
+            }
+        }
+    }
+
+    return -1; //if we never find anything
+}
+
+int findFirstAvailableData()
+{
+    return -1;
 }
 
 //============ API Functions ===============

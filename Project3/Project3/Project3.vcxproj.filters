@@ -27,6 +27,12 @@
     <ClCompile Include="LibFS.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="main (updated).cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="main2.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LibDisk.h">

@@ -128,6 +128,9 @@ int searchInodeForPath(int inodeToSearch, std::vector<std::string>& path, int pa
             DirectoryEntry curEntry = directoryBlock[j];
             std::string name(curEntry.name);
             if (name.compare(path.at(pathSegment))) //if we find the next directory, recurse into it
+                //TODO this assumes it's actually a directory. we could be trying to create a directory c when there's already a file called c
+                //I think we're going to have to pull the actual inode and check the type
+                //this might be a fairly minor case--come back to it
             {
                 return searchInodeForPath(curEntry.inodeNum, path, pathSegment++);
             }
@@ -260,35 +263,29 @@ Dir_Create(char *path)
         pathStr.erase(0, pos + delimiter.length());
     }
 
+    //create the inode
+    Inode* inodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode)); //allocate a block full of inodes
+    inodeBlock[0].fileType = 1; //directory
+    inodeBlock[0].fileSize = 0; //nothing in it
+
+    //create the actual directory
+    DirectoryEntry* directoryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry)); //allocate a block full of entries, all bits are 0
+
     //special case--first directory
     if (pathStr.compare(delimiter) == 0)
     {
-        //create the initial inode
-        Inode* inodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode)); //allocate a block full of inodes
-        inodeBlock[0].fileType = 1; //directory
-        inodeBlock[0].fileSize = 0; //nothing in it
-        
-        //create the actual directory
-        DirectoryEntry* directoryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry)); //allocate a block full of entries, all bits are 0
-        
         //there's nothing in the directory, so leave it as all 0's
 
-        //TODO use bitmaps to find spot for directory
-        //assign that into the inode pointer
-        //then find a spot for the inode
-        //then write them
+        //TODO write these to the disk
     }
     else //otherwise, start at the root and find the appropriate spot
     {
-        //what are we actually trying to find?
-        //we want the directory, of course
-        //if they're creating c, we want b
-        //we want the inode for b
-        //with the inode for b, we can find the directory file for b
-        //then we can create the inode and directory file for c
-        //then we can add the inode for c to the directory file for b
-
-
+        int parentInode = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
+        /*TODO
+        the new inode will represent the new dir (e.g. c) and needs to point to a new directory block found with the bitmap
+        the parentinode's directory block will need to be updated to include an entry for this new directory
+        
+        */
     }
 
     return 0;

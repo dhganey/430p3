@@ -101,6 +101,45 @@ int findFirstAvailableData()
     return -1;
 }
 
+//Searches the given inode for the current pathsegment
+//Recursive
+int searchInodeForPath(int inodeToSearch, std::vector<std::string>& path, int pathSegment)
+{
+    //Base case 1: If we're at the end of the path, we're already in the target node
+    //Just return!
+    if (pathSegment + 1 == path.size())
+    {
+        return inodeToSearch;
+    }
+
+    //First, load the current directory inode
+    Inode* inodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+    Disk_Read((inodeToSearch / NUM_INODES_PER_BLOCK), (char*)inodeBlock); //floor divide by 4 to get the actual sector, e.g. if pass inode 6 we want block 1
+    Inode curNode = inodeBlock[inodeToSearch % NUM_INODES_PER_BLOCK]; //mod to get the actual inode
+
+    //Search the contents of the current inode
+    int i = curNode.pointers[0];
+    while (i != 0)
+    {
+        DirectoryEntry* directoryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
+        Disk_Read(curNode.pointers[i], (char*)directoryBlock);
+        for (int j = 0; j < NUM_DIRECTORIES_PER_BLOCK; j++)
+        {
+            DirectoryEntry curEntry = directoryBlock[j];
+            std::string name(curEntry.name);
+            if (name.compare(path.at(pathSegment))) //if we find the next directory, recurse into it
+            {
+                return searchInodeForPath(curEntry.inodeNum, path, pathSegment++);
+            }
+            //else continue
+        }
+        i++;
+    }
+
+    return -1;
+    //TODO error case base case 2
+}
+
 //============ API Functions ===============
 int 
 FS_Boot(char *path)
@@ -234,50 +273,22 @@ Dir_Create(char *path)
         
         //there's nothing in the directory, so leave it as all 0's
 
-        //TODO REDO THE FINDING AND WRITING HERE
+        //TODO use bitmaps to find spot for directory
+        //assign that into the inode pointer
+        //then find a spot for the inode
+        //then write them
     }
     else //otherwise, start at the root and find the appropriate spot
     {
-        // example directory: /a/b/c
-        //pathVec should contain 3 things: a, b, c
-        //they're trying to create c in this case, so we want to iterate 2 times (to find a, and to find b)
+        //what are we actually trying to find?
+        //we want the directory, of course
+        //if they're creating c, we want b
+        //we want the inode for b
+        //with the inode for b, we can find the directory file for b
+        //then we can create the inode and directory file for c
+        //then we can add the inode for c to the directory file for b
 
-        int i = 0;
-        int inodePointer = ROOT_INODE_OFFSET;
 
-        while (i < pathVec.size())
-        {
-            //load the inode for the current directory
-            char* curDirInodeChar = new char[sizeof(Inode) * NUM_INODES_PER_BLOCK];
-            Disk_Read(inodePointer, curDirInodeChar);
-            Inode* curNode = (Inode*)curDirInodeChar;
-
-            for (int j = 0; j < NUM_INODES_PER_BLOCK; j++) //search all 4 inodes
-            {
-                Inode node = curNode[j];
-                int k = 0;
-                while (node.pointers[k] != 0)
-                {
-                    char* tempDataChar = new char[sizeof(DirectoryEntry)* NUM_DIRECTORIES_PER_BLOCK];
-                    Disk_Read(node.pointers[k], tempDataChar);
-                    DirectoryEntry* entries = (DirectoryEntry*)tempDataChar;
-
-                    for (int m = 0; m < NUM_DIRECTORIES_PER_BLOCK; m++) //search all returned directories
-                    {
-                        DirectoryEntry dir = entries[m];
-                        std::string name(dir.name);
-                        if (name.compare(pathVec.at(i)) == 0) //if we find it, then what?
-                        {
-                            // TODO do something here, like recurse?
-                        }
-                    }
-
-                    k++;
-                }
-            }
-
-            i++;
-        }
     }
 
     return 0;

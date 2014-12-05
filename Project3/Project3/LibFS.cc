@@ -256,7 +256,7 @@ Dir_Create(char *path)
 
     //create the actual directory
     DirectoryEntry* directoryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry)); //allocate a block full of entries, all bits are 0
-    int directorySector = (findFirstAvailableData() / NUM_INODES_PER_BLOCK); //again, floor by 4 since it might give us inode 9, which is the start of block 2...
+    int directorySector = findFirstAvailableData(); //note that this does not have to be floor divided, it returns the SECTOR
 
     inodeBlock[0].pointers[0] = directorySector;
 
@@ -264,8 +264,6 @@ Dir_Create(char *path)
     if (pathStr.compare(delimiter) == 0)
     {
         //there's nothing in the directory, so leave it as all 0's
-
-        inodeBlock[0].pointers[0] = directorySector;
 
         Disk_Write(INODE_BITMAP_OFFSET, (char*)inodeBlock);
         Disk_Write(directorySector, (char*)directoryBlock);
@@ -278,7 +276,7 @@ Dir_Create(char *path)
         //in a path /a/b/c, trying to add c, parentInode gives us the inode for b
 
         Inode* parentInodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
-        Disk_Read((parentInodeNum / 4), (char*)parentInodeBlock);
+        Disk_Read((parentInodeNum / NUM_INODES_PER_BLOCK), (char*)parentInodeBlock);
 
         //Now, insert a directoryentry for c into the directory block pointed to by b's inode
         bool inserted = false;
@@ -323,6 +321,12 @@ Dir_Create(char *path)
 
             i++;
         }
+
+        //By this point, a directory entry for c has been entered into b's directory record
+        //All that's left to do is write the inode and directory entry for the new directory
+
+        Disk_Write((newInodeNum / NUM_INODES_PER_BLOCK), (char*)inodeBlock);
+        Disk_Write(directorySector, (char*)directoryBlock);
     }
 
     return 0;

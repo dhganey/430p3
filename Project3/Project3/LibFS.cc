@@ -253,13 +253,23 @@ File_Create(char *file)
     std::string pathStr(file);
     std::vector <std::string> pathVec = tokenizePathToVector(pathStr);
 
+    int newInodeNum = findFirstAvailableInode();
+    int newInodeSector = newInodeNum / NUM_INODES_PER_BLOCK;
+
     int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
     //TODO error case if -1
 
-    //For each new file, we need one inode
-    //TODO: do we also need to init something for it to point to? or don't bother with a data block?
-    //either way, we also need to update the directory entry for the parent
-    //TODO this should reuse the code from dir_create
+    Inode* newNodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+    //TODO FUCK
+    //HOW DO WE DEAL WITH THIS SHIT
+    //FUCK you need to go back and change the way you're doing inodes
+    //currently, always creating a new block and writing the first one
+    //but we want 4 per block
+    //need more complex logic to handle that
+    // the first time that works, after that you wind up overwriting it
+    //e.g. say the available block returns 3, the start of sector 1. that's great, we write that
+    //next time it returns 4, but we fucking wind up writing it over 3
+    //shit
 
     return 0;
 }

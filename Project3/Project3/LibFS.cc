@@ -192,6 +192,58 @@ std::vector<std::string> tokenizePathToVector(std::string pathStr)
     return pathVec;
 }
 
+int insertDirectoryEntry(std::vector<std::string>& pathVec, int parentInodeNum, int newInodeNum)
+{
+    Inode* parentInodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+    Disk_Read((parentInodeNum / NUM_INODES_PER_BLOCK), (char*)parentInodeBlock);
+
+    //Now, insert a directoryentry for c into the directory block pointed to by b's inode
+    bool inserted = false;
+    int i = 0;
+    while (!inserted) //check the parent inodes pointers
+    {
+        if (i == 30)
+        {
+            //TODO error case
+            //we've checked all pointers at this point and not made an insertion
+            return -1;
+        }
+
+        int entrySector = parentInodeBlock[parentInodeNum % NUM_INODES_PER_BLOCK].pointers[i];
+        if (entrySector == 0)
+        {
+            //if we've hit a pointer to 0, we need a new Directory sector and everything. find a new one with the bitmap and create it normally.
+            DirectoryEntry* newEntry = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
+            newEntry[0].inodeNum = newInodeNum;
+            strcpy(newEntry[0].name, pathVec.at(pathVec.size() - 1).c_str());
+            int newDirectorySector = findFirstAvailableDataSector();
+            Disk_Write(newDirectorySector, (char*)newEntry);
+            parentInodeBlock[parentInodeNum % NUM_INODES_PER_BLOCK].pointers[i] = newDirectorySector;
+
+            inserted = true;
+            break;
+        }
+
+        DirectoryEntry* entryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
+        Disk_Read(entrySector, (char*)entryBlock);
+
+        for (int j = 0; j < NUM_DIRECTORIES_PER_BLOCK; j++)
+        {
+            if (entryBlock[j].inodeNum == 0) //can't possibly be the superblock! calloc should set it to 0 initially
+            {
+                strcpy(entryBlock[j].name, pathVec.at(pathVec.size() - 1).c_str()); //copy the end of the path name into the new entry
+                entryBlock[j].inodeNum = newInodeNum;
+                Disk_Write(entrySector, (char*)entryBlock); //update the entry
+                inserted = true;
+            }
+        }
+
+        i++;
+    }
+
+
+}
+
 //============ API Functions ===============
 int 
 FS_Boot(char *path)
@@ -255,9 +307,7 @@ File_Create(char *file)
     int newInodeSector = newInodeNum / NUM_INODES_PER_BLOCK;
 
     int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
-    //TODO error case if -1
-    //TODO ADD A DIRECTORY ENTRY JUST LIKE YOU DID FOR DIR_CREATE
-    //IDENTIFY THE SHARED CODE AND METHODIZE IT
+    insertDirectoryEntry(pathVec, parentInodeNum, newInodeNum);
 
     //now create the new inode for the file
     Inode* newNodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
@@ -331,52 +381,7 @@ Dir_Create(char *path)
         int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
         //in a path /a/b/c, trying to add c, parentInode gives us the inode for b
 
-        Inode* parentInodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
-        Disk_Read((parentInodeNum / NUM_INODES_PER_BLOCK), (char*)parentInodeBlock);
-
-        //Now, insert a directoryentry for c into the directory block pointed to by b's inode
-        bool inserted = false;
-        int i = 0;
-        while (!inserted) //check the parent inodes pointers
-        {
-            if (i == 30)
-            {
-                //TODO error case
-                //we've checked all pointers at this point and not made an insertion
-                return -1;
-            }
-
-            int entrySector = parentInodeBlock[parentInodeNum % NUM_INODES_PER_BLOCK].pointers[i];
-            if (entrySector == 0)
-            {
-                //if we've hit a pointer to 0, we need a new Directory sector and everything. find a new one with the bitmap and create it normally.
-                DirectoryEntry* newEntry = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
-                newEntry[0].inodeNum = newInodeNum;
-                strcpy(newEntry[0].name, pathVec.at(pathVec.size() - 1).c_str());
-                int newDirectorySector = findFirstAvailableDataSector();
-                Disk_Write(newDirectorySector, (char*)newEntry);
-                parentInodeBlock[parentInodeNum % NUM_INODES_PER_BLOCK].pointers[i] = newDirectorySector;
-
-                inserted = true;
-                break;
-            }
-
-            DirectoryEntry* entryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
-            Disk_Read(entrySector, (char*)entryBlock);
-
-            for (int j = 0; j < NUM_DIRECTORIES_PER_BLOCK; j++)
-            {
-                if (entryBlock[j].inodeNum == 0) //can't possibly be the superblock! calloc should set it to 0 initially
-                {
-                    strcpy(entryBlock[j].name, pathVec.at(pathVec.size() - 1).c_str()); //copy the end of the path name into the new entry
-                    entryBlock[j].inodeNum = newInodeNum;
-                    Disk_Write(entrySector, (char*)entryBlock); //update the entry
-                    inserted = true;
-                }
-            }
-
-            i++;
-        }
+        insertDirectoryEntry(pathVec, parentInodeNum, newInodeNum);
 
         //By this point, a directory entry for c has been entered into b's directory record
         //All that's left to do is write the inode and directory entry for the new directory

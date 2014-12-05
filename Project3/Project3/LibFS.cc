@@ -254,7 +254,12 @@ File_Create(char *file)
     std::vector <std::string> pathVec = tokenizePathToVector(pathStr);
 
     int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
-    //TODO error case
+    //TODO error case if -1
+
+    //For each new file, we need one inode
+    //TODO: do we also need to init something for it to point to? or don't bother with a data block?
+    //either way, we also need to update the directory entry for the parent
+    //TODO this should reuse the code from dir_create
 
     return 0;
 }

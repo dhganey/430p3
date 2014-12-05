@@ -260,16 +260,6 @@ File_Create(char *file)
     //TODO error case if -1
 
     Inode* newNodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
-    //TODO FUCK
-    //HOW DO WE DEAL WITH THIS SHIT
-    //FUCK you need to go back and change the way you're doing inodes
-    //currently, always creating a new block and writing the first one
-    //but we want 4 per block
-    //need more complex logic to handle that
-    // the first time that works, after that you wind up overwriting it
-    //e.g. say the available block returns 3, the start of sector 1. that's great, we write that
-    //next time it returns 4, but we fucking wind up writing it over 3
-    //shit
 
     return 0;
 }
@@ -306,19 +296,19 @@ Dir_Create(char *path)
 
     //create the inode
     Inode* inodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode)); //allocate a block full of inodes
-    inodeBlock[0].fileType = 1; //directory
-    inodeBlock[0].fileSize = 0; //nothing in it
 
     //create the actual directory
     DirectoryEntry* directoryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry)); //allocate a block full of entries, all bits are 0
     int directorySector = findFirstAvailableDataSector(); //note that this does not have to be floor divided, it returns the SECTOR
 
-    inodeBlock[0].pointers[0] = directorySector;
-
     //special case--first directory
     if (pathStr.compare("/") == 0)
     {
         //there's nothing in the directory, so leave it as all 0's
+
+        inodeBlock[0].fileType = 1; //directory
+        inodeBlock[0].fileSize = 0; //nothing in it
+        inodeBlock[0].pointers[0] = directorySector;
 
         Disk_Write(INODE_BITMAP_OFFSET, (char*)inodeBlock);
         Disk_Write(directorySector, (char*)directoryBlock);
@@ -326,6 +316,10 @@ Dir_Create(char *path)
     else //otherwise, start at the root and find the appropriate spot
     {
         int newInodeNum = findFirstAvailableInode();
+        Disk_Read(newInodeNum / NUM_INODES_PER_BLOCK, (char*)inodeBlock);
+        inodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].fileType = 1; //update the appropriate part of the inode block
+        inodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].fileSize = 0;
+        inodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].pointers[0] = directorySector;
 
         int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
         //in a path /a/b/c, trying to add c, parentInode gives us the inode for b

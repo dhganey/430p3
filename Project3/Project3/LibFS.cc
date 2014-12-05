@@ -223,23 +223,9 @@ File_Write(int fd, void *buffer, int size)
 }
 
 int
-File_Seek(int fd, int offset)
-{
-    printf("FS_Seek\n");
-    return 0;
-}
-
-int
 File_Close(int fd)
 {
     printf("FS_Close\n");
-    return 0;
-}
-
-int
-File_Unlink(char *file)
-{
-    printf("FS_Unlink\n");
     return 0;
 }
 
@@ -270,44 +256,74 @@ Dir_Create(char *path)
 
     //create the actual directory
     DirectoryEntry* directoryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry)); //allocate a block full of entries, all bits are 0
+    int directorySector = (findFirstAvailableData() / NUM_INODES_PER_BLOCK); //again, floor by 4 since it might give us inode 9, which is the start of block 2...
+
+    inodeBlock[0].pointers[0] = directorySector;
 
     //special case--first directory
     if (pathStr.compare(delimiter) == 0)
     {
         //there's nothing in the directory, so leave it as all 0's
 
-        //TODO write these to the disk
+        inodeBlock[0].pointers[0] = directorySector;
+
+        Disk_Write(INODE_BITMAP_OFFSET, (char*)inodeBlock);
+        Disk_Write(directorySector, (char*)directoryBlock);
     }
     else //otherwise, start at the root and find the appropriate spot
     {
-        int parentInode = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
-        /*TODO
-        the new inode will represent the new dir (e.g. c) and needs to point to a new directory block found with the bitmap
-        the parentinode's directory block will need to be updated to include an entry for this new directory
-        
-        */
+        int newInodeNum = findFirstAvailableInode();
+
+        int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
+        //in a path /a/b/c, trying to add c, parentInode gives us the inode for b
+
+        Inode* parentInodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+        Disk_Read((parentInodeNum / 4), (char*)parentInodeBlock);
+
+        //Now, insert a directoryentry for c into the directory block pointed to by b's inode
+        bool inserted = false;
+        int i = 0;
+        while (!inserted) //check the parent inodes pointers
+        {
+            if (i == 30)
+            {
+                //TODO error case
+                //we've checked all pointers at this point and not made an insertion
+                return -1;
+            }
+
+            int entrySector = parentInodeBlock[parentInodeNum % NUM_INODES_PER_BLOCK].pointers[i];
+            if (entrySector == 0)
+            {
+                //if we've hit a pointer to 0, we need a new Directory sector and everything. find a new one with the bitmap and create it normally.
+                DirectoryEntry* newEntry = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
+                newEntry[0].inodeNum = newInodeNum;
+                strcpy(newEntry[0].name, pathVec.at(pathVec.size() - 1).c_str());
+                int newDirectorySector = findFirstAvailableData();
+                Disk_Write(newDirectorySector, (char*)newEntry);
+                parentInodeBlock[parentInodeNum % NUM_INODES_PER_BLOCK].pointers[i] = newDirectorySector;
+
+                inserted = true;
+                break;
+            }
+
+            DirectoryEntry* entryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
+            Disk_Read(entrySector, (char*)entryBlock);
+
+            for (int j = 0; j < NUM_DIRECTORIES_PER_BLOCK; j++)
+            {
+                if (entryBlock[j].inodeNum == 0) //can't possibly be the superblock! calloc should set it to 0 initially
+                {
+                    strcpy(entryBlock[j].name, pathVec.at(pathVec.size() - 1).c_str()); //copy the end of the path name into the new entry
+                    entryBlock[j].inodeNum = newInodeNum;
+                    Disk_Write(entrySector, (char*)entryBlock); //update the entry
+                    inserted = true;
+                }
+            }
+
+            i++;
+        }
     }
 
-    return 0;
-}
-
-int
-Dir_Size(char *path)
-{
-    printf("Dir_Size\n");
-    return 0;
-}
-
-int
-Dir_Read(char *path, void *buffer, int size)
-{
-    printf("Dir_Read\n");
-    return 0;
-}
-
-int
-Dir_Unlink(char *path)
-{
-    printf("Dir_Unlink\n");
     return 0;
 }

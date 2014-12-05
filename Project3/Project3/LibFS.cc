@@ -9,6 +9,8 @@
 // global errno value here
 int osErrno;
 
+int totalFilesAndDirectories = 0;
+
 char* magicString = "666";
 char* bootPath; //we'll populate this after boot so we can call sync
 
@@ -39,6 +41,11 @@ typedef struct bitmap
     char bits[NUM_CHARS];
     char garbage[SECTOR_SIZE - NUM_CHARS];
 } Bitmap;
+
+typedef struct filedata
+{
+    char contents[SECTOR_SIZE];
+} FileData;
 
 Bitmap* inodeBitmap;
 Bitmap* dataBitmap;
@@ -248,8 +255,7 @@ int insertDirectoryEntry(std::vector<std::string>& pathVec, int parentInodeNum, 
 }
 
 //============ API Functions ===============
-int 
-FS_Boot(char *path)
+int FS_Boot(char *path)
 {
     printf("FS_Boot %s\n", path);
     bootPath = path;
@@ -272,10 +278,9 @@ FS_Boot(char *path)
         Disk_Load(path);
 
         //check that size is correct and superblock accurate per section 3.5
-        char* receivingBuffer = new char[SECTOR_SIZE];
-        Disk_Read(0, receivingBuffer);
-        char* loadedSuper = ((Superblock*) receivingBuffer)->magic;
-        if (strcmp(loadedSuper, magicString) != 0)
+        Superblock* super = (Superblock*)calloc(1, sizeof(Superblock));
+        Disk_Read(SUPER_BLOCK_OFFSET, (char*)super);
+        if (strcmp(super->magic, magicString) != 0)
         {
             printf("Superblock magic number validation failed");
             osErrno = E_GENERAL;
@@ -288,8 +293,7 @@ FS_Boot(char *path)
     return 0;
 }
 
-int
-FS_Sync()
+int FS_Sync()
 {
     printf("FS_Sync\n");
 
@@ -299,8 +303,7 @@ FS_Sync()
 }
 
 
-int
-File_Create(char *file)
+int File_Create(char *file)
 {
     printf("FS_Create\n");
     std::string pathStr(file);
@@ -321,25 +324,31 @@ File_Create(char *file)
 
     Disk_Write(newInodeSector, (char*)newNodeBlock);
 
+    totalFilesAndDirectories++;
+
     return 0;
 }
 
-int
-File_Open(char *file)
+//Returns a fd, file descriptor
+int File_Open(char *file)
 {
     printf("FS_Open\n");
+
+    std::string pathStr(file);
+    std::vector<std::string> pathVec = tokenizePathToVector(pathStr);
+
+    int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
+
     return 0;
 }
 
-int
-File_Write(int fd, void *buffer, int size)
+int File_Write(int fd, void *buffer, int size)
 {
     printf("FS_Write\n");
     return 0;
 }
 
-int
-File_Close(int fd)
+int File_Close(int fd)
 {
     printf("FS_Close\n");
     return 0;
@@ -347,8 +356,7 @@ File_Close(int fd)
 
 
 // directory ops
-int
-Dir_Create(char *path)
+int Dir_Create(char *path)
 {
     printf("Dir_Create %s\n", path);
     std::string pathStr(path);
@@ -393,5 +401,6 @@ Dir_Create(char *path)
         Disk_Write(directorySector, (char*)directoryBlock);
     }
 
+    totalFilesAndDirectories++;
     return 0;
 }

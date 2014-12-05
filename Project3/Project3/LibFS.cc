@@ -57,7 +57,11 @@ Create_New_Disk(char* path)
         return ok;
     }
     
-   //TODO initialize and write the bitmaps
+    inodeBitmap = (Bitmap*)calloc(1, sizeof(Bitmap));
+    dataBitmap = (Bitmap*)calloc(1, sizeof(Bitmap));
+
+    Disk_Write(INODE_BITMAP_OFFSET, (char*)inodeBitmap);
+    Disk_Write(DATA_BITMAP_OFFSET, (char*)dataBitmap);
 
     //create the root directory
     ok = Dir_Create("/");
@@ -173,6 +177,23 @@ int searchInodeForPath(int inodeToSearch, std::vector<std::string>& path, int pa
     //TODO error case base case 2
 }
 
+std::vector<std::string> tokenizePathToVector(std::string pathStr)
+{
+    std::string delimiter = "/";
+    //string tokenizer from http://stackoverflow.com/questions/14265581/parse-split-a-string-in-c-using-string-delimiter-standard-c
+    size_t pos = 0;
+    std::string token;
+    std::vector<std::string> pathVec;
+    while ((pos = pathStr.find(delimiter)) != std::string::npos)
+    {
+        token = pathStr.substr(0, pos);
+        pathVec.push_back(std::string(token));
+        pathStr.erase(0, pos + delimiter.length());
+    }
+
+    return pathVec;
+}
+
 //============ API Functions ===============
 int 
 FS_Boot(char *path)
@@ -229,6 +250,12 @@ int
 File_Create(char *file)
 {
     printf("FS_Create\n");
+    std::string pathStr(file);
+    std::vector <std::string> pathVec = tokenizePathToVector(pathStr);
+
+    int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
+    //TODO error case
+
     return 0;
 }
 
@@ -236,13 +263,6 @@ int
 File_Open(char *file)
 {
     printf("FS_Open\n");
-    return 0;
-}
-
-int
-File_Read(int fd, void *buffer, int size)
-{
-    printf("FS_Read\n");
     return 0;
 }
 
@@ -266,19 +286,8 @@ int
 Dir_Create(char *path)
 {
     printf("Dir_Create %s\n", path);
-
-    std::string delimiter = "/";
-    //string tokenizer from http://stackoverflow.com/questions/14265581/parse-split-a-string-in-c-using-string-delimiter-standard-c
-    size_t pos = 0;
-    std::string token;
-    std::vector<std::string> pathVec;
     std::string pathStr(path);
-    while ((pos = pathStr.find(delimiter)) != std::string::npos)
-    {
-        token = pathStr.substr(0, pos);
-        pathVec.push_back(std::string(token));
-        pathStr.erase(0, pos + delimiter.length());
-    }
+    std::vector<std::string> pathVec = tokenizePathToVector(pathStr);
 
     //create the inode
     Inode* inodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode)); //allocate a block full of inodes
@@ -292,7 +301,7 @@ Dir_Create(char *path)
     inodeBlock[0].pointers[0] = directorySector;
 
     //special case--first directory
-    if (pathStr.compare(delimiter) == 0)
+    if (pathStr.compare("/") == 0)
     {
         //there's nothing in the directory, so leave it as all 0's
 

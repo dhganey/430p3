@@ -16,7 +16,8 @@ char* bootPath; //we'll populate this after boot so we can call sync
 
 typedef struct superblock
 {
-    char magic[3];
+    char magic[4]; //one extra for \0
+    char garbage[SECTOR_SIZE - 3];
 } Superblock;
 
 typedef struct inode
@@ -49,8 +50,10 @@ Create_New_Disk(char* path)
     int ok = 0;
 
     //prep the superblock
-    //superblock contains "666" followed by garbage
-    ok = Disk_Write(SUPER_BLOCK_OFFSET, magicString);
+    Superblock* super = (Superblock*)calloc(1, sizeof(Superblock));
+    strcpy(super->magic, magicString);
+    ok = Disk_Write(SUPER_BLOCK_OFFSET, (char*)super);
+
     if (ok == -1)
     {
         osErrno = E_CREATE;

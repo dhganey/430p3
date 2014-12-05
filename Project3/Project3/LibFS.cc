@@ -5,14 +5,20 @@
 #include <vector>
 #include <iostream>
 #include <math.h>
+#include <unordered_map>
 
 // global errno value here
 int osErrno;
 
 int totalFilesAndDirectories = 0;
-
+int fileDescriptorCount = 0;
 char* magicString = "666";
 char* bootPath; //we'll populate this after boot so we can call sync
+
+//Maps from file descriptors to open file structs
+typedef std::unordered_map<int, OpenFile> OpenFileMap;
+
+OpenFileMap openFileTable;
 
 //structs
 
@@ -46,6 +52,13 @@ typedef struct filedata
 {
     char contents[SECTOR_SIZE];
 } FileData;
+
+typedef struct openfile
+{
+    int inodeNum;
+    int filepointer;
+    char garbage[SECTOR_SIZE - 2 * sizeof(int)];
+} OpenFile;
 
 Bitmap* inodeBitmap;
 Bitmap* dataBitmap;
@@ -337,7 +350,40 @@ int File_Open(char *file)
     std::string pathStr(file);
     std::vector<std::string> pathVec = tokenizePathToVector(pathStr);
 
+    //Grab the parent inode
     int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
+    Inode* parentInodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+    Disk_Read(parentInodeNum / NUM_INODES_PER_BLOCK, (char*)parentInodeBlock);
+    Inode parentInode = parentInodeBlock[parentInodeNum % NUM_INODES_PER_BLOCK];
+
+    if (parentInode.fileType != 1) //if not a directory
+    {
+        return -1; //TODO error case
+    }
+
+    //Now that we have the parent inode, search the contents of its directory
+    //for the file we're trying to open
+    for (int i = 0; i < 30; i++) //go through all the pointers
+    {
+        DirectoryEntry* dirBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
+        Disk_Read(parentInode.pointers[i], (char*)dirBlock);
+        for (int j = 0; j < NUM_DIRECTORIES_PER_BLOCK; j++) //go through all the directories for the given pointer
+        {
+            DirectoryEntry curEntry = dirBlock[j];
+            if (strcmp(curEntry.name, pathVec.at(pathVec.size() - 1).c_str()) == 0) //if we find the file, open it!
+            {
+                OpenFile of;
+                of.filepointer = 0; //haven't written or read anything yet
+                of.inodeNum = curEntry.inodeNum;
+                openFileTable.insert(std::pair<int, OpenFile>(fileDescriptorCount, of));
+                fileDescriptorCount++; //increase for uniqueness, BUT:
+                return (fileDescriptorCount - 1); //return the one we saved!
+
+                //TODO: again, note that this returns the inode for anything with the right name
+                //this could be opening a directory, i think
+            }
+        }
+    }
 
     return 0;
 }
@@ -351,6 +397,16 @@ int File_Write(int fd, void *buffer, int size)
 int File_Close(int fd)
 {
     printf("FS_Close\n");
+
+    OpenFileMap::iterator it = openFileTable.find(fd);
+    if (it == openFileTable.end())
+    {
+        return -1;
+        //TODO ERROR CASE
+    }
+
+    //if we found it, close the file and get out of here
+    openFileTable.erase(fd);
     return 0;
 }
 

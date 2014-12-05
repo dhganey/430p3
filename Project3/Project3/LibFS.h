@@ -13,7 +13,6 @@
 #include <unistd.h>
 #endif
 
-char* magicString = "666";
 const int NUM_INODES = 1000;
 const int NUM_CHARS = 125;
 const int NUM_DATA_BLOCKS = 746;
@@ -21,8 +20,6 @@ const int MAX_FILES = 1000;
 const int NUM_DIRECTORIES_PER_BLOCK = 16;
 const int NUM_INODES_PER_BLOCK = 4;
 const int NUM_POINTERS = 30;
-
-char* bootPath; //we'll populate this after boot so we can call sync
 
 //sector "pointer" offsets
 const int SUPER_BLOCK_OFFSET = 0;

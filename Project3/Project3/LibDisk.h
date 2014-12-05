@@ -9,12 +9,18 @@
 #ifndef __Disk_H__
 #define __Disk_H__
 
-#include <stdio.h>
-#include <stdlib.h>
-#ifdef _WIN32
-#include <io.h>
+#include	<stdio.h>
+#include    <iostream>
+#include	<string.h>
+#include	<sys/stat.h>
+#include	<sys/types.h>
+#include	<errno.h>
+#include	<fcntl.h>
+#include    <string.h>
+#ifdef WIN32
+#include    <io.h>
 #else
-#include <unistd.h>
+#include    <unistd.h>
 #endif
 // a few disk parameters
 #define SECTOR_SIZE  512

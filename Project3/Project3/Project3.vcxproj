@@ -79,7 +79,6 @@
     <ClCompile Include="LibDisk.cc" />
     <ClCompile Include="LibFS.cc" />
     <ClCompile Include="main (updated).cc" />
-    <ClCompile Include="main.cc" />
     <ClCompile Include="main2.cc" />
     <ClCompile Include="smallmain.c" />
   </ItemGroup>

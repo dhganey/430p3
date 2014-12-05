@@ -1,5 +1,5 @@
 #include "LibDisk.h"
-#include <string.h>
+
 
 // the disk in memory (static makes it private to the file)
 static Sector* disk;

@@ -9,6 +9,9 @@
 // global errno value here
 int osErrno;
 
+char* magicString = "666";
+char* bootPath; //we'll populate this after boot so we can call sync
+
 //structs
 
 typedef struct superblock
@@ -75,6 +78,8 @@ Create_New_Disk(char* path)
 }
 
 //Finds the first 0 in the inode bitmap
+//Returns the inode number, NOT the sector number! Must be adjusted by the caller before writing
+//This is because we need the actual inode number for pointers
 int findFirstAvailableInode()
 {
     //Look through each char
@@ -82,13 +87,17 @@ int findFirstAvailableInode()
     {
         char c = inodeBitmap->bits[i];
         //Each char represents 8 bits
-        for (int j = 7; j >= 8; j--) //check from highest to lowest bit, e.g. for 01111111 find on the first pass
+        for (int j = 7; j >= 0; j--) //check from highest to lowest bit, e.g. for 01111111 find on the first pass
         {
             int comp = pow(2, i);
             if ((c & comp) != comp) //theres a 0 at that position
             {
-                //TODO FLIP IT
-                //TODO RETURN
+                //we want to flip the ith bit
+                c |= 1 << i; //this should do it: http://stackoverflow.com/questions/47981/how-do-you-set-clear-and-toggle-a-single-bit-in-c-c
+                inodeBitmap->bits[i] = c;
+
+                //now return the inode num
+                return ((i * 8) + abs(j - 7)); //TODO this might not be right
             }
         }
     }
@@ -96,9 +105,30 @@ int findFirstAvailableInode()
     return -1; //if we never find anything
 }
 
-int findFirstAvailableData()
+//Finds the first 0 in the data bitmap
+//Returns the SECTOR number since data is considered in whole sectors rather than pieces
+int findFirstAvailableDataSector()
 {
-    return -1;
+    //Look through each char
+    for (int i = 0; i < NUM_CHARS; i++)
+    {
+        char c = dataBitmap->bits[i];
+        //Each char represents 8 bits
+        for (int j = 7; j >= 0; j--)
+        {
+            int comp = pow(2, 1);
+            if ((c & comp) != comp) //0 in that position
+            {
+                //flip the ith bit?
+                c |= 1 << i;
+                dataBitmap->bits[i] = c;
+
+                //return the sector number.
+                //still the same return function as above! here, each bit maps to an entire block
+                return ((i * 8) + abs(j - 7)); //TODO this might not be right
+            }
+        }
+    }
 }
 
 //Searches the given inode for the current pathsegment
@@ -148,6 +178,7 @@ int
 FS_Boot(char *path)
 {
     printf("FS_Boot %s\n", path);
+    bootPath = path;
 
     if (Disk_Init() == -1)
     {
@@ -235,7 +266,7 @@ int
 Dir_Create(char *path)
 {
     printf("Dir_Create %s\n", path);
-    
+
     std::string delimiter = "/";
     //string tokenizer from http://stackoverflow.com/questions/14265581/parse-split-a-string-in-c-using-string-delimiter-standard-c
     size_t pos = 0;
@@ -256,7 +287,7 @@ Dir_Create(char *path)
 
     //create the actual directory
     DirectoryEntry* directoryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry)); //allocate a block full of entries, all bits are 0
-    int directorySector = findFirstAvailableData(); //note that this does not have to be floor divided, it returns the SECTOR
+    int directorySector = findFirstAvailableDataSector(); //note that this does not have to be floor divided, it returns the SECTOR
 
     inodeBlock[0].pointers[0] = directorySector;
 
@@ -297,7 +328,7 @@ Dir_Create(char *path)
                 DirectoryEntry* newEntry = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
                 newEntry[0].inodeNum = newInodeNum;
                 strcpy(newEntry[0].name, pathVec.at(pathVec.size() - 1).c_str());
-                int newDirectorySector = findFirstAvailableData();
+                int newDirectorySector = findFirstAvailableDataSector();
                 Disk_Write(newDirectorySector, (char*)newEntry);
                 parentInodeBlock[parentInodeNum % NUM_INODES_PER_BLOCK].pointers[i] = newDirectorySector;
 

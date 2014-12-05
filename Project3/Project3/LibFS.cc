@@ -162,9 +162,7 @@ int searchInodeForPath(int inodeToSearch, std::vector<std::string>& path, int pa
             DirectoryEntry curEntry = directoryBlock[j];
             std::string name(curEntry.name);
             if (name.compare(path.at(pathSegment))) //if we find the next directory, recurse into it
-                //TODO this assumes it's actually a directory. we could be trying to create a directory c when there's already a file called c
-                //I think we're going to have to pull the actual inode and check the type
-                //this might be a fairly minor case--come back to it
+                //TODO this assumes it's actually a directory. but this might be recursing into a file, and that's going to cause serious problems
             {
                 return searchInodeForPath(curEntry.inodeNum, path, pathSegment++);
             }
@@ -258,8 +256,17 @@ File_Create(char *file)
 
     int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
     //TODO error case if -1
+    //TODO ADD A DIRECTORY ENTRY JUST LIKE YOU DID FOR DIR_CREATE
+    //IDENTIFY THE SHARED CODE AND METHODIZE IT
 
+    //now create the new inode for the file
     Inode* newNodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+    Disk_Read(newInodeSector, (char*)newNodeBlock);
+    newNodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].fileType = 0;
+    newNodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].fileSize = 0;
+    //that's it, I think! No need to point to anything since they've not tried to write yet
+
+    Disk_Write(newInodeSector, (char*)newNodeBlock);
 
     return 0;
 }

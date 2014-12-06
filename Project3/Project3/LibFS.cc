@@ -296,6 +296,7 @@ int FS_Boot(char *path)
         if (strcmp(super->magic, magicString) != 0)
         {
             printf("Superblock magic number validation failed");
+            std::cout << "Actually found " << super->magic << std::endl;
             osErrno = E_GENERAL;
             return -1;
         }
@@ -373,7 +374,7 @@ int File_Open(char *file)
             if (strcmp(curEntry.name, pathVec.at(pathVec.size() - 1).c_str()) == 0) //if we find the file, open it!
             {
                 OpenFile of;
-                of.filepointer = 0; //haven't written or read anything yet
+                of.filepointer = 0; //haven't written or read anything yet. TODO: THIS SHOULD BE THE FILE SIZE, NOT ALWAYS 0!!!!
                 of.inodeNum = curEntry.inodeNum;
                 openFileTable.insert(std::pair<int, OpenFile>(fileDescriptorCount, of));
                 fileDescriptorCount++; //increase for uniqueness, BUT:
@@ -406,13 +407,40 @@ int File_Write(int fd, void *buffer, int size)
 
     int filePointer = open.filepointer;
     
-    //TODO: error case based on size and fp
+    if (filePointer + size > 30 * SECTOR_SIZE)
+    {
+        return -1;
+        //TODO error case, too big?
+    }
 
-    int startingPointer = filePointer / SECTOR_SIZE; //this tells is which index of curNode.pointers to start writing in
-    FileData* curFile = (FileData*)calloc(1, sizeof(FileData));
-    Disk_Read(curNode.pointers[startingPointer], (char*)curFile);
+    int remainingSize = size;
+    while (remainingSize > 0)
+    {
+        int filePointerForBlock = filePointer % SECTOR_SIZE;
+        FileData* writeBlock;
+        int dataSector;
 
+        if (filePointerForBlock == 0) //at the beginning, create a new one
+        {
+            writeBlock = new FileData();
+            dataSector = findFirstAvailableDataSector();
+            inodeBlock[open.inodeNum % NUM_INODES_PER_BLOCK].pointers[filePointer / SECTOR_SIZE] = dataSector;
+            Disk_Write(open.inodeNum / NUM_INODES_PER_BLOCK, (char*)inodeBlock);
+        }
+        else
+        {
+            dataSector = curNode.pointers[filePointer / SECTOR_SIZE];
+            Disk_Read(dataSector, (char*)writeBlock);
+        }
 
+        for (int i = filePointerForBlock; i < remainingSize, filePointerForBlock < SECTOR_SIZE; filePointerForBlock++, filePointer++)
+        {
+            writeBlock->contents[i] = ((char*)buffer)[i];
+        }
+
+        Disk_Write(dataSector, (char*)writeBlock);
+        filePointer++;
+    }
     return 0;
 }
 

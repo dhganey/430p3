@@ -171,7 +171,8 @@ int searchInodeForPath(int inodeToSearch, std::vector<std::string>& path, int pa
 
     //First, load the current directory inode
     Inode* inodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
-    Disk_Read((inodeToSearch / NUM_INODES_PER_BLOCK), (char*)inodeBlock); //floor divide by 4 to get the actual sector, e.g. if pass inode 6 we want block 1
+    int inodeSector = (inodeToSearch / NUM_INODES_PER_BLOCK) + ROOT_INODE_OFFSET;
+    Disk_Read(inodeSector, (char*)inodeBlock);
     Inode curNode = inodeBlock[inodeToSearch % NUM_INODES_PER_BLOCK]; //mod to get the actual inode
 
     //Search the contents of the current inode
@@ -222,7 +223,8 @@ std::vector<std::string> tokenizePathToVector(std::string pathStr)
 int insertDirectoryEntry(std::vector<std::string>& pathVec, int parentInodeNum, int newInodeNum)
 {
     Inode* parentInodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
-    Disk_Read((parentInodeNum / NUM_INODES_PER_BLOCK), (char*)parentInodeBlock);
+    int parentInodeSector = (parentInodeNum / NUM_INODES_PER_BLOCK) + ROOT_INODE_OFFSET;
+    Disk_Read(parentInodeSector, (char*)parentInodeBlock);
 
     //Now, insert a directoryentry for c into the directory block pointed to by b's inode
     bool inserted = false;
@@ -305,7 +307,11 @@ int FS_Boot(char *path)
             return -1;
         }
 
-        //TODO populate the bitmaps
+        inodeBitmap = (Bitmap*)calloc(1, sizeof(Bitmap));
+        dataBitmap = (Bitmap*)calloc(1, sizeof(Bitmap));
+
+        Disk_Read(INODE_BITMAP_OFFSET, (char*)inodeBitmap);
+        Disk_Read(DATA_BITMAP_OFFSET, (char*)dataBitmap);
     }
 
     return 0;
@@ -406,7 +412,8 @@ int File_Write(int fd, void *buffer, int size)
     OpenFile open = openFileTable.at(fd);
     //get the inode of the file
     Inode* inodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
-    Disk_Read(open.inodeNum / NUM_INODES_PER_BLOCK, (char*)inodeBlock);
+    int inodeSector = (open.inodeNum / NUM_INODES_PER_BLOCK) + ROOT_INODE_OFFSET;
+    Disk_Read(inodeSector, (char*)inodeBlock);
     Inode curNode = inodeBlock[open.inodeNum % NUM_INODES_PER_BLOCK];
 
     int filePointer = open.filepointer;
@@ -429,7 +436,7 @@ int File_Write(int fd, void *buffer, int size)
             writeBlock = new FileData();
             dataSector = findFirstAvailableDataSector();
             inodeBlock[open.inodeNum % NUM_INODES_PER_BLOCK].pointers[filePointer / SECTOR_SIZE] = dataSector;
-            Disk_Write(open.inodeNum / NUM_INODES_PER_BLOCK, (char*)inodeBlock);
+            Disk_Write(inodeSector, (char*)inodeBlock);
         }
         else
         {
@@ -488,13 +495,14 @@ int Dir_Create(char *path)
         inodeBlock[0].fileSize = 0; //nothing in it
         inodeBlock[0].pointers[0] = directorySector;
 
-        Disk_Write(INODE_BITMAP_OFFSET, (char*)inodeBlock);
+        Disk_Write(ROOT_INODE_OFFSET, (char*)inodeBlock);
         Disk_Write(directorySector, (char*)directoryBlock);
     }
     else //otherwise, start at the root and find the appropriate spot
     {
         int newInodeNum = findFirstAvailableInode();
-        Disk_Read(newInodeNum / NUM_INODES_PER_BLOCK, (char*)inodeBlock);
+        int newInodeSector = (newInodeNum / NUM_INODES_PER_BLOCK) + ROOT_INODE_OFFSET;
+        Disk_Read(newInodeSector, (char*)inodeBlock);
         inodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].fileType = 1; //update the appropriate part of the inode block
         inodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].fileSize = 0;
         inodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].pointers[0] = directorySector;
@@ -507,7 +515,7 @@ int Dir_Create(char *path)
         //By this point, a directory entry for c has been entered into b's directory record
         //All that's left to do is write the inode and directory entry for the new directory
 
-        Disk_Write((newInodeNum / NUM_INODES_PER_BLOCK), (char*)inodeBlock);
+        Disk_Write(newInodeSector, (char*)inodeBlock);
         Disk_Write(directorySector, (char*)directoryBlock);
     }
 

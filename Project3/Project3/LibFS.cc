@@ -152,7 +152,7 @@ int findFirstAvailableDataSector()
 
                 //return the sector number.
                 //still the same return function as above! here, each bit maps to an entire block
-                return ((i * 8) + abs(j - 7)); //TODO this might not be right
+                return ((i * 8) + abs(j - 7)) + FIRST_DATABLOCK_OFFSET; //TODO this might not be right
             }
         }
     }
@@ -323,7 +323,7 @@ int File_Create(char *file)
     std::vector <std::string> pathVec = tokenizePathToVector(pathStr);
 
     int newInodeNum = findFirstAvailableInode();
-    int newInodeSector = newInodeNum / NUM_INODES_PER_BLOCK;
+    int newInodeSector = newInodeNum / NUM_INODES_PER_BLOCK + ROOT_INODE_OFFSET; //TODO: APPLY THIS FIX EVERYWHERE WE READ. this is the clear way of doing it (compute a sector outside of the read call)
 
     int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
     insertDirectoryEntry(pathVec, parentInodeNum, newInodeNum);
@@ -391,6 +391,29 @@ int File_Open(char *file)
 int File_Write(int fd, void *buffer, int size)
 {
     printf("FS_Write\n");
+    OpenFileMap::iterator it = openFileTable.find(fd);
+    if (it == openFileTable.end())
+    {
+        return -1;
+        //TODO error case
+    }
+
+    OpenFile open = openFileTable.at(fd);
+    //get the inode of the file
+    Inode* inodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+    Disk_Read(open.inodeNum / NUM_INODES_PER_BLOCK, (char*)inodeBlock);
+    Inode curNode = inodeBlock[open.inodeNum % NUM_INODES_PER_BLOCK];
+
+    int filePointer = open.filepointer;
+    //the filepointer points to how many bytes from the beginning of the file we've already written
+    //if it's 0, the file is empty. if it's 512, we've already written one block, etc.
+    
+    if (size + filePointer > (30 * SECTOR_SIZE))
+    {
+        return -1;
+        //TODO error case
+    }
+
     return 0;
 }
 

@@ -177,8 +177,8 @@ int searchInodeForPath(int inodeToSearch, std::vector<std::string>& path, int pa
     Inode curNode = inodeBlock[inodeToSearch % NUM_INODES_PER_BLOCK]; //mod to get the actual inode
 
     //Search the contents of the current inode
-    int i = curNode.pointers[0];
-    while (i != 0)
+    int i = 0;
+    while (curNode.pointers[i] != 0)
     {
         DirectoryEntry* directoryBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
         Disk_Read(curNode.pointers[i], (char*)directoryBlock);
@@ -186,10 +186,10 @@ int searchInodeForPath(int inodeToSearch, std::vector<std::string>& path, int pa
         {
             DirectoryEntry curEntry = directoryBlock[j];
             std::string name(curEntry.name);
-            if (name.compare(path.at(pathSegment))) //if we find the next directory, recurse into it
+            if (name.compare(path.at(pathSegment)) == 0) //if we find the next directory, recurse into it
                 //TODO this assumes it's actually a directory. but this might be recursing into a file, and that's going to cause serious problems
             {
-                return searchInodeForPath(curEntry.inodeNum, path, pathSegment++);
+                return searchInodeForPath(curEntry.inodeNum, path, pathSegment + 1);
             }
             //else continue
         }
@@ -381,7 +381,8 @@ int File_Open(char *file)
     //Grab the parent inode
     int parentInodeNum = searchInodeForPath(0, pathVec, 0);
     Inode* parentInodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
-    Disk_Read(parentInodeNum / NUM_INODES_PER_BLOCK, (char*)parentInodeBlock);
+    int inodeSector = (parentInodeNum / NUM_INODES_PER_BLOCK) + ROOT_INODE_OFFSET;
+    Disk_Read(inodeSector, (char*)parentInodeBlock);
     Inode parentInode = parentInodeBlock[parentInodeNum % NUM_INODES_PER_BLOCK];
 
     if (parentInode.fileType != 1) //if not a directory
@@ -400,8 +401,15 @@ int File_Open(char *file)
             DirectoryEntry curEntry = dirBlock[j];
             if (strcmp(curEntry.name, pathVec.at(pathVec.size() - 1).c_str()) == 0) //if we find the file, open it!
             {
+                //we need the size of the file
+                //grab that inodenum
+                Inode* nodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+                int inodeSector = (curEntry.inodeNum / NUM_INODES_PER_BLOCK) + ROOT_INODE_OFFSET;
+                Disk_Read(inodeSector, (char*)nodeBlock);
+                Inode curNode = nodeBlock[curEntry.inodeNum % NUM_INODES_PER_BLOCK];
+
                 OpenFile of;
-                of.filepointer = 0; //haven't written or read anything yet. TODO: THIS SHOULD BE THE FILE SIZE, NOT ALWAYS 0!!!!
+                of.filepointer = curNode.fileSize;
                 of.inodeNum = curEntry.inodeNum;
                 openFileTable.insert(std::pair<int, OpenFile>(fileDescriptorCount, of));
                 fileDescriptorCount++; //increase for uniqueness, BUT:

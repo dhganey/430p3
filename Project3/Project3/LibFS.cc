@@ -522,3 +522,58 @@ int Dir_Create(char *path)
     totalFilesAndDirectories++;
     return 0;
 }
+
+
+
+
+
+
+void validateRoot()
+{
+    Inode* rootBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+    Disk_Read(ROOT_INODE_OFFSET, (char*)rootBlock);
+    Inode rootNode = rootBlock[0];
+    std::cout << "Root block filetype " << rootNode.fileType << " with pointers:\n";
+    for (int i = 0; i < 30; i++)
+    {
+        std::cout << rootNode.pointers[i] << " ";
+    }
+    std::cout << std::endl;
+}
+
+void printInodes()
+{
+    Inode* inodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+
+    for (int i = ROOT_INODE_OFFSET; i < FIRST_DATABLOCK_OFFSET; i++)
+    {
+        Disk_Read(i, (char*)inodeBlock);
+        for (int j = 0; j < NUM_INODES_PER_BLOCK; j++)
+        {
+            Inode curNode = inodeBlock[j];
+            if (curNode.fileType == 1)
+            {
+                std::cout << "Directory at inode #" << i << " with pointers:\n";
+                for (int k = 0; k < 30; k++)
+                {
+                    std::cout << curNode.pointers[k] << " ";
+                }
+                std::cout << std::endl;
+            }
+        }
+    }
+}
+
+int main()
+{
+    FS_Boot("image.fsfile");
+    validateRoot();
+
+    //create a directory
+    Dir_Create("/dir1");
+
+    //create a file
+    File_Create("/file1.txt");
+
+    printInodes();
+}

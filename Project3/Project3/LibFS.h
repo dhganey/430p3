@@ -25,7 +25,7 @@ const int NUM_POINTERS = 30;
 const int SUPER_BLOCK_OFFSET = 0;
 const int INODE_BITMAP_OFFSET = 1;
 const int DATA_BITMAP_OFFSET = 2;
-const int ROOT_INODE_OFFSET = 4; //skip 1 for data bitmap 2
+const int ROOT_INODE_OFFSET = 3; //skip 1 for data bitmap 2
 const int FIRST_DATABLOCK_OFFSET = 255;
 
 // used for errors

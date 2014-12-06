@@ -15,11 +15,6 @@ int fileDescriptorCount = 0;
 char* magicString = "666";
 char* bootPath; //we'll populate this after boot so we can call sync
 
-//Maps from file descriptors to open file structs
-typedef std::unordered_map<int, OpenFile> OpenFileMap;
-
-OpenFileMap openFileTable;
-
 //structs
 
 typedef struct superblock
@@ -59,6 +54,11 @@ typedef struct openfile
     int filepointer;
     char garbage[SECTOR_SIZE - 2 * sizeof(int)];
 } OpenFile;
+
+//Maps from file descriptors to open file structs
+typedef std::unordered_map<int, OpenFile> OpenFileMap;
+
+OpenFileMap openFileTable;
 
 Bitmap* inodeBitmap;
 Bitmap* dataBitmap;
@@ -208,10 +208,14 @@ std::vector<std::string> tokenizePathToVector(std::string pathStr)
     while ((pos = pathStr.find(delimiter)) != std::string::npos)
     {
         token = pathStr.substr(0, pos);
-        pathVec.push_back(std::string(token));
+        if (std::string(token).compare("") != 0)
+        {
+            pathVec.push_back(std::string(token));
+        }
         pathStr.erase(0, pos + delimiter.length());
     }
 
+    pathVec.push_back(pathStr); //tokenizer skips the last entry
     return pathVec;
 }
 

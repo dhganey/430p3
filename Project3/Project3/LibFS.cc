@@ -7,6 +7,8 @@
 #include <math.h>
 #include <unordered_map>
 
+#define DEBUG true
+
 // global errno value here
 int osErrno;
 
@@ -495,8 +497,14 @@ int Dir_Create(char *path)
         inodeBlock[0].fileSize = 0; //nothing in it
         inodeBlock[0].pointers[0] = directorySector;
 
+        findFirstAvailableInode(); //TODO added this because i guess we're not reporting the root as filled
+
         Disk_Write(ROOT_INODE_OFFSET, (char*)inodeBlock);
         Disk_Write(directorySector, (char*)directoryBlock);
+        if (DEBUG)
+        {
+            std::cout << "Created root directory " << std::endl;
+        }
     }
     else //otherwise, start at the root and find the appropriate spot
     {
@@ -514,7 +522,19 @@ int Dir_Create(char *path)
 
         //By this point, a directory entry for c has been entered into b's directory record
         //All that's left to do is write the inode and directory entry for the new directory
-
+        if (DEBUG)
+        {
+            std::cout << "Creating dir. Writing inode block containing:" << std::endl;
+            for (int i = 0; i < NUM_INODES_PER_BLOCK; i++)
+            {
+                std::cout << "Inode " << i << " filetype " << inodeBlock[i].fileType << " with pointers: " << std::endl;
+                for (int j = 0; j < 30; j++)
+                {
+                    std::cout << inodeBlock[i].pointers[j] << " ";
+                }
+                std::cout << std::endl;
+            }
+        }
         Disk_Write(newInodeSector, (char*)inodeBlock);
         Disk_Write(directorySector, (char*)directoryBlock);
     }
@@ -562,18 +582,4 @@ void printInodes()
             }
         }
     }
-}
-
-int main()
-{
-    FS_Boot("image.fsfile");
-    validateRoot();
-
-    //create a directory
-    Dir_Create("/dir1");
-
-    //create a file
-    File_Create("/file1.txt");
-
-    printInodes();
 }

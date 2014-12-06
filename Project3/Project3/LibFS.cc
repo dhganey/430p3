@@ -405,14 +405,13 @@ int File_Write(int fd, void *buffer, int size)
     Inode curNode = inodeBlock[open.inodeNum % NUM_INODES_PER_BLOCK];
 
     int filePointer = open.filepointer;
-    //the filepointer points to how many bytes from the beginning of the file we've already written
-    //if it's 0, the file is empty. if it's 512, we've already written one block, etc.
     
-    if (size + filePointer > (30 * SECTOR_SIZE))
-    {
-        return -1;
-        //TODO error case
-    }
+    //TODO: error case based on size and fp
+
+    int startingPointer = filePointer / SECTOR_SIZE; //this tells is which index of curNode.pointers to start writing in
+    FileData* curFile = (FileData*)calloc(1, sizeof(FileData));
+    Disk_Read(curNode.pointers[startingPointer], (char*)curFile);
+
 
     return 0;
 }

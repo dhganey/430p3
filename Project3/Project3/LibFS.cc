@@ -118,11 +118,11 @@ int findFirstAvailableInode()
         //Each char represents 8 bits
         for (int j = 7; j >= 0; j--) //check from highest to lowest bit, e.g. for 01111111 find on the first pass
         {
-            int comp = pow(2, i);
+            int comp = pow(2, j);
             if ((c & comp) != comp) //theres a 0 at that position
             {
-                //we want to flip the ith bit
-                c |= 1 << i; //this should do it: http://stackoverflow.com/questions/47981/how-do-you-set-clear-and-toggle-a-single-bit-in-c-c
+                //we want to flip the jth bit
+                c |= 1 << j; //this should do it: http://stackoverflow.com/questions/47981/how-do-you-set-clear-and-toggle-a-single-bit-in-c-c
                 inodeBitmap->bits[i] = c;
 
                 //now return the inode num
@@ -145,11 +145,10 @@ int findFirstAvailableDataSector()
         //Each char represents 8 bits
         for (int j = 7; j >= 0; j--)
         {
-            int comp = pow(2, 1);
+            int comp = pow(2, j);
             if ((c & comp) != comp) //0 in that position
             {
-                //flip the ith bit?
-                c |= 1 << i;
+                c |= 1 << j;
                 dataBitmap->bits[i] = c;
 
                 //return the sector number.
@@ -266,13 +265,14 @@ int insertDirectoryEntry(std::vector<std::string>& pathVec, int parentInodeNum, 
                 entryBlock[j].inodeNum = newInodeNum;
                 Disk_Write(entrySector, (char*)entryBlock); //update the entry
                 inserted = true;
+                break;
             }
         }
 
         i++;
     }
 
-
+    return 0;
 }
 
 //============ API Functions ===============
@@ -332,13 +332,28 @@ int FS_Sync()
 int File_Create(char *file)
 {
     printf("FS_Create\n");
+
+    if (DEBUG)
+    {
+        std::cout << "Before creating file, verify the root node:" << std::endl;
+        Inode* rootNode = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+        Disk_Read(ROOT_INODE_OFFSET, (char*)rootNode);
+        Inode node = rootNode[0];
+        std::cout << "Root node has filetype " << node.fileType << " and pointers:" << std::endl;
+        for (int i = 0; i < 30; i++)
+        {
+            std::cout << node.pointers[i] << " ";
+        }
+        std::cout << std::endl;
+    }
+
     std::string pathStr(file);
     std::vector <std::string> pathVec = tokenizePathToVector(pathStr);
 
     int newInodeNum = findFirstAvailableInode();
     int newInodeSector = newInodeNum / NUM_INODES_PER_BLOCK + ROOT_INODE_OFFSET; //TODO: APPLY THIS FIX EVERYWHERE WE READ. this is the clear way of doing it (compute a sector outside of the read call)
 
-    int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
+    int parentInodeNum = searchInodeForPath(0, pathVec, 0);
     insertDirectoryEntry(pathVec, parentInodeNum, newInodeNum);
 
     //now create the new inode for the file
@@ -364,7 +379,7 @@ int File_Open(char *file)
     std::vector<std::string> pathVec = tokenizePathToVector(pathStr);
 
     //Grab the parent inode
-    int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
+    int parentInodeNum = searchInodeForPath(0, pathVec, 0);
     Inode* parentInodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
     Disk_Read(parentInodeNum / NUM_INODES_PER_BLOCK, (char*)parentInodeBlock);
     Inode parentInode = parentInodeBlock[parentInodeNum % NUM_INODES_PER_BLOCK];
@@ -515,7 +530,7 @@ int Dir_Create(char *path)
         inodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].fileSize = 0;
         inodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].pointers[0] = directorySector;
 
-        int parentInodeNum = searchInodeForPath(ROOT_INODE_OFFSET, pathVec, 0);
+        int parentInodeNum = searchInodeForPath(0, pathVec, 0);
         //in a path /a/b/c, trying to add c, parentInode gives us the inode for b
 
         insertDirectoryEntry(pathVec, parentInodeNum, newInodeNum);

@@ -1,0 +1,42 @@
+\documentclass[]{article}
+
+%packages
+\usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry} %adjust margins. TODO: hack to fix large top margin
+\usepackage{setspace} %allows doublespacing, onehalfspacing, singlespacing
+\usepackage{enumitem} %for continuing lists
+\usepackage{titling} %for moving the title
+\usepackage[normalem]{ulem} %for underlining
+\usepackage{graphicx} %for inserting images
+\usepackage{listings} %for source code
+\usepackage{color} %for defining colors (syntax highlighting)
+
+\renewcommand{\thesubsection}{\thesection.\alph{subsection}}
+
+%syntax highlighting
+\definecolor{mygreen}{rgb}{0,0.6,0}
+\definecolor{mygray}{rgb}{0.5,0.5,0.5}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+
+\lstset{ %
+  backgroundcolor=\color{white},   % choose the background color
+  basicstyle=\footnotesize,        % size of fonts used for the code
+  breaklines=true,                 % automatic line breaking only at whitespace
+  captionpos=b,                    % sets the caption-position to bottom
+  commentstyle=\color{mygreen},    % comment style
+  escapeinside={\%*}{*)},          % if you want to add LaTeX within your code
+  keywordstyle=\color{blue},       % keyword style
+  stringstyle=\color{mymauve},     % string literal style
+}
+
+\begin{document}
+\lstset{language=C++}
+
+\begin{spacing}{.4}
+\setlength{\droptitle}{-7em}
+\title{CSE 430 Project 2}
+\author{David Ganey}
+\date{October 31st, 2014}
+\maketitle
+\end{spacing}
+
+\end{document}

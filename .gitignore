@@ -189,3 +189,7 @@ FakesAssemblies/
 
 # Custom filesystem files
 *.fsfile
+
+#TeX files
+*.gz
+*.aux

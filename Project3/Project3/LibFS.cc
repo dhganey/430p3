@@ -393,7 +393,7 @@ int File_Create(char *file)
     bool alreadyExists = directoryContainsName(parentInodeNum, pathVec.at(pathVec.size() - 1));
     if (alreadyExists)
     {
-        //TODO error case
+        osErrno = E_CREATE;
         return -1;
     }
 
@@ -583,7 +583,13 @@ int Dir_Create(char *path)
         inodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].pointers[0] = directorySector;
 
         int parentInodeNum = searchInodeForPath(0, pathVec, 0);
-        //in a path /a/b/c, trying to add c, parentInode gives us the inode for b
+        
+        bool alreadyExists = directoryContainsName(parentInodeNum, pathVec.at(pathVec.size() - 1));
+        if (alreadyExists)
+        {
+            osErrno = E_CREATE;
+            return -1;
+        }
 
         insertDirectoryEntry(pathVec, parentInodeNum, newInodeNum);
 

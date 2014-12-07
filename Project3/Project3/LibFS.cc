@@ -7,7 +7,7 @@
 #include <math.h>
 #include <unordered_map>
 
-#define DEBUG true
+#define DEBUG false
 
 // global errno value here
 int osErrno;
@@ -282,7 +282,7 @@ bool directoryContainsName(int directoryInodeNum, std::string name)
 {
     //load the inode
     Inode* nodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
-    int inodeSector = directoryInodeNum / NUM_INODES_PER_BLOCK;
+    int inodeSector = directoryInodeNum / NUM_INODES_PER_BLOCK + ROOT_INODE_OFFSET;
     Disk_Read(inodeSector, (char*)nodeBlock);
     Inode curNode = nodeBlock[directoryInodeNum % NUM_INODES_PER_BLOCK];
 
@@ -426,6 +426,13 @@ int File_Open(char *file)
 
     //Grab the parent inode
     int parentInodeNum = searchInodeForPath(0, pathVec, 0);
+    if (parentInodeNum == -1)
+    {
+        //didn't find the file
+        osErrno = E_NO_SUCH_FILE;
+        return -1;
+    }
+
     Inode* parentInodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
     int inodeSector = (parentInodeNum / NUM_INODES_PER_BLOCK) + ROOT_INODE_OFFSET;
     Disk_Read(inodeSector, (char*)parentInodeBlock);

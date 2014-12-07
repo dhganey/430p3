@@ -63,7 +63,7 @@ The open file table is basically implemented as an array. However, to make remov
 \lstinputlisting[language=c++]{findFirstAvailableInode.cc}
 
 \section{API Implementation}
-Most of the API functions share a similar structure. All functions with a \texttt{char* path} parameter start out by tokenizing the string, storing each ``/" delimited substring as a string in a vector. Any function which needs to add a directory or inode uses the bitmap functions to flip the appropriate bit and to determine which sector to store the new file in.
+Most of the API functions share a similar structure. All functions with a \texttt{char* path} parameter start out by tokenizing the string, storing each ``/" delimited substring as a string in a vector. Any function which needs to add a directory or inode uses the bitmap functions to flip the appropriate bit and to determine which sector to store the new file in. This means that the bitmap is filled in order -- the first character starts as 00000000, then 10000000, then 11000000, etc. In a more complex filesystem which supports deleting files, a bitmap would be more useful, but for this project a bitmap could be substituted with a simple integer which keeps count of how many inodes are allocated. This would simply be incremented each time, instead of requiring more complicated bit manipulation.
 
 \section{Problems} \label{sec:problems}
 fdfsdfsd

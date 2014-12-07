@@ -369,7 +369,7 @@ int FS_Sync()
 
 int File_Create(char *file)
 {
-    printf("FS_Create\n");
+    printf("File_Create %s\n", file);
 
     if (DEBUG)
     {
@@ -419,7 +419,7 @@ int File_Create(char *file)
 //Returns a fd, file descriptor
 int File_Open(char *file)
 {
-    printf("FS_Open\n");
+    printf("File_Open %s\n", file);
 
     std::string pathStr(file);
     std::vector<std::string> pathVec = tokenizePathToVector(pathStr);
@@ -486,7 +486,8 @@ int File_Open(char *file)
 
 int File_Write(int fd, void *buffer, int size)
 {
-    printf("FS_Write\n");
+    printf("File_Write");
+
     OpenFileMap::iterator it = openFileTable.find(fd);
     if (it == openFileTable.end())
     {

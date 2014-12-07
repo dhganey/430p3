@@ -126,7 +126,7 @@ int findFirstAvailableInode()
                 inodeBitmap->bits[i] = c;
 
                 //now return the inode num
-                return ((i * 8) + abs(j - 7)); //TODO this might not be right
+                return ((i * 8) + abs(j - 7));
             }
         }
     }
@@ -153,7 +153,7 @@ int findFirstAvailableDataSector()
 
                 //return the sector number.
                 //still the same return function as above! here, each bit maps to an entire block
-                return ((i * 8) + abs(j - 7)) + FIRST_DATABLOCK_OFFSET; //TODO this might not be right
+                return ((i * 8) + abs(j - 7)) + FIRST_DATABLOCK_OFFSET;
             }
         }
     }
@@ -196,8 +196,9 @@ int searchInodeForPath(int inodeToSearch, std::vector<std::string>& path, int pa
         i++;
     }
 
+    //we get here if we never find the current path segment
+    osErrno = E_NO_SUCH_FILE; //guess
     return -1;
-    //TODO error case base case 2
 }
 
 std::vector<std::string> tokenizePathToVector(std::string pathStr)
@@ -234,8 +235,10 @@ int insertDirectoryEntry(std::vector<std::string>& pathVec, int parentInodeNum, 
     {
         if (i == 30)
         {
-            //TODO error case
-            //we've checked all pointers at this point and not made an insertion
+            //checked all pointers and not inserted anything
+            //means we never found a 0 in the directory entry for any of the pointers (very unlikely)
+
+            osErrno = E_GENERAL;
             return -1;
         }
 
@@ -430,7 +433,14 @@ int File_Open(char *file)
 
     if (parentInode.fileType != 1) //if not a directory
     {
-        return -1; //TODO error case
+        osErrno = E_NO_SUCH_FILE;
+        return -1;
+    }
+
+    if (openFileTable.size() > 256)
+    {
+        osErrno = E_TOO_MANY_OPEN_FILES;
+        return -1;
     }
 
     //Now that we have the parent inode, search the contents of its directory
@@ -473,8 +483,8 @@ int File_Write(int fd, void *buffer, int size)
     OpenFileMap::iterator it = openFileTable.find(fd);
     if (it == openFileTable.end())
     {
+        osErrno = E_BAD_FD;
         return -1;
-        //TODO error case
     }
 
     OpenFile open = openFileTable.at(fd);
@@ -486,10 +496,11 @@ int File_Write(int fd, void *buffer, int size)
 
     int filePointer = open.filepointer;
     
+    //if the write completes, the size will be the curSize (filepointer) + size
     if (filePointer + size > 30 * SECTOR_SIZE)
     {
+        osErrno = E_FILE_TOO_BIG;
         return -1;
-        //TODO error case, too big?
     }
 
     int remainingSize = size;
@@ -531,8 +542,9 @@ int File_Close(int fd)
     OpenFileMap::iterator it = openFileTable.find(fd);
     if (it == openFileTable.end())
     {
+        //file isn't open, and can't be closed
+        osErrno = E_BAD_FD;
         return -1;
-        //TODO ERROR CASE
     }
 
     //if we found it, close the file and get out of here
@@ -564,7 +576,7 @@ int Dir_Create(char *path)
         inodeBlock[0].fileSize = 0; //nothing in it
         inodeBlock[0].pointers[0] = directorySector;
 
-        findFirstAvailableInode(); //TODO added this because i guess we're not reporting the root as filled
+        findFirstAvailableInode(); //we don't need the value here (should be 0), but we need to flip that bit so we don't overwrite the root
 
         Disk_Write(ROOT_INODE_OFFSET, (char*)inodeBlock);
         Disk_Write(directorySector, (char*)directoryBlock);

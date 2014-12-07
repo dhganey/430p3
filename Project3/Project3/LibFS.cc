@@ -275,6 +275,37 @@ int insertDirectoryEntry(std::vector<std::string>& pathVec, int parentInodeNum, 
     return 0;
 }
 
+bool directoryContainsName(int directoryInodeNum, std::string name)
+{
+    //load the inode
+    Inode* nodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+    int inodeSector = directoryInodeNum / NUM_INODES_PER_BLOCK;
+    Disk_Read(inodeSector, (char*)nodeBlock);
+    Inode curNode = nodeBlock[directoryInodeNum % NUM_INODES_PER_BLOCK];
+
+    for (int i = 0; i < 30; i++)
+    {
+        if (curNode.pointers[i] != 0)
+        {
+            //load the block at that pointer
+            DirectoryEntry* dirBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
+            Disk_Read(curNode.pointers[i], (char*)dirBlock);
+
+            for (int j = 0; j < NUM_DIRECTORIES_PER_BLOCK; j++)
+            {
+                DirectoryEntry curEntry = dirBlock[j];
+                std::string tempName(curEntry.name);
+                if (tempName.compare(name) == 0)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false; //if we never find it
+}
+
 //============ API Functions ===============
 int FS_Boot(char *path)
 {
@@ -323,6 +354,10 @@ int FS_Sync()
 {
     printf("FS_Sync\n");
 
+    //update the disk with the current structures:
+    Disk_Write(INODE_BITMAP_OFFSET, (char*)inodeBitmap);
+    Disk_Write(DATA_BITMAP_OFFSET, (char*)dataBitmap);
+
     Disk_Save(bootPath);
 
     return 0;
@@ -351,9 +386,17 @@ int File_Create(char *file)
     std::vector <std::string> pathVec = tokenizePathToVector(pathStr);
 
     int newInodeNum = findFirstAvailableInode();
-    int newInodeSector = newInodeNum / NUM_INODES_PER_BLOCK + ROOT_INODE_OFFSET; //TODO: APPLY THIS FIX EVERYWHERE WE READ. this is the clear way of doing it (compute a sector outside of the read call)
+    int newInodeSector = newInodeNum / NUM_INODES_PER_BLOCK + ROOT_INODE_OFFSET;
 
     int parentInodeNum = searchInodeForPath(0, pathVec, 0);
+    //before we add a directory entry, make sure a file with this name does not already exist in the parent
+    bool alreadyExists = directoryContainsName(parentInodeNum, pathVec.at(pathVec.size() - 1));
+    if (alreadyExists)
+    {
+        //TODO error case
+        return -1;
+    }
+
     insertDirectoryEntry(pathVec, parentInodeNum, newInodeNum);
 
     //now create the new inode for the file

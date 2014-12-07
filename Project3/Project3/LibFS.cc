@@ -469,7 +469,8 @@ int File_Write(int fd, void *buffer, int size)
             Disk_Read(dataSector, (char*)writeBlock);
         }
 
-        for (int i = filePointerForBlock; i < remainingSize, filePointerForBlock < SECTOR_SIZE; filePointerForBlock++, filePointer++)
+        int remainingSizeBackup = remainingSize;
+        for (int i = filePointerForBlock; i < remainingSizeBackup && filePointerForBlock < SECTOR_SIZE; filePointerForBlock++, filePointer++, remainingSize--)
         {
             writeBlock->contents[i] = ((char*)buffer)[i];
         }

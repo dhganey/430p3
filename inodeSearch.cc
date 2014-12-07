@@ -1,0 +1,1 @@
+return searchInodeForPath(curEntry.inodeNum, path, pathSegment + 1);

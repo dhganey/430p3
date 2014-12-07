@@ -33,10 +33,39 @@
 
 \begin{spacing}{.4}
 \setlength{\droptitle}{-7em}
-\title{CSE 430 Project 2}
+\title{CSE 430 Project 3}
 \author{David Ganey}
-\date{October 31st, 2014}
 \maketitle
 \end{spacing}
+
+\section{Introduction}
+This project simulates a file system with basic creation, writing, and persistence features. The project demonstrates knowledge of Unix-style file systems and uses a variety of data structures and programming techniques. While the majority of the program is complete, some features are not fully operational (see section~\ref{sec:problems} for more information).
+
+\section{Data Structures and Utility Functions}
+This section will discuss some of the data structures and basic algorithms implemented for use in the File/Directory APIs.
+
+\subsection{Bitmaps}
+The bitmaps are implemented as arrays of characters to save space. Each character stores 1 byte, which can represent the state of 8 inodes or directories. Two methods were written to work with these bitmaps, called \texttt{int findFirstAvailableInode()} and \texttt{int findFirstAvailableDataSector}. Each of these functions loops through all characters in the bitmap, and for each one, checks each bit (from highest to lowest). When it finds a 0, the function flips it and returns the corresponding position. When the inode function returns, it returns the specific number of the inode. The caller then needs to deduce (using integer division) which sector that inode is actually stored in on the disk (since each sector contains four inodes). In contrast, the data sector function simply returns the actual sector to be used.
+
+\subsection{Searching}
+When creating files or directories, it is essential to traverse the file structure until the \emph{parent} of the new node is found. A recursive function, called \texttt{int searchInodeForPath}, accomplishes this. The parameters given to this function are \texttt{int inodeToSearch}, which starts as 0 (the root inode number), a vector of \texttt{std::strings} which represents the path, and \texttt{int pathSegment}, which tells the function which index of the vector to check. At each call of this function, it first checks if \texttt{pathSegment} is at the end. If the current segment is the end of the path (the name of the new directory/file), then \texttt{inodeToSearch} already represents the parent, and we simply return that. Otherwise, the function loads the current directory inode and searches the directory contents for names which match the vector entry at the current segment. When it finds one, it calls itself:
+\lstinputlisting[language=c++]{inodeSearch.cc}
+
+\subsection{Arithmetic}
+Basic integer division and modulo functions are heavily used in this project. Most sectors contain more than one entry (e.g. 4 inodes per sector), so some arithmetic is required to determine how to reference the specific section of the block and the specific sector in which the block should be written. The code below demonstrates this arithmetic, showing how an inode number of 6 could be used to write an inode to index 2 of sector 1:
+\lstinputlisting[language=c++]{inodeArithmetic.cc}
+
+%TODO COULD DO MORE HERE? tokenizer or directory entry functions?
+
+\subsection{Open File Table}
+The open file table is basically implemented as an array. However, to make removal of entries easier a map is used instead. The map maps from integers to a custom struct called \texttt{OpenFile}. This structure contains the inode number of the file and that file's current filepointer. When a file is opened, a new entry is added, and when a file is closed, that entry is removed.
+
+\lstinputlisting[language=c++]{findFirstAvailableInode.cc}
+
+\section{API Implementation}
+Most of the API functions share a similar structure. All functions with a \texttt{char* path} parameter start out by tokenizing the string, storing each ``/" delimited substring as a string in a vector. Any function which needs to add a directory or inode uses the bitmap functions to flip the appropriate bit and to determine which sector to store the new file in.
+
+\section{Problems} \label{sec:problems}
+fdfsdfsd
 
 \end{document}

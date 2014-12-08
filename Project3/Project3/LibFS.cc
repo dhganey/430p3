@@ -673,8 +673,3 @@ void printInodes()
         }
     }
 }
-
-int main()
-{
-    FS_Boot("image.fsfile");
-}

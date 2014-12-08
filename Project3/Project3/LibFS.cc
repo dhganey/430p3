@@ -19,14 +19,14 @@ char* bootPath; //we'll populate this after boot so we can call sync
 typedef struct superblock
 {
     char magic[4]; //one extra for \0
-    char garbage[SECTOR_SIZE - 3];
+    char garbage[SECTOR_SIZE - 4];
 } Superblock;
 
 typedef struct inode
 {
     int fileType; //0 represents file, 1 is a directory
     int fileSize; //in bytes
-    int pointers[30];
+    int pointers[NUM_POINTERS];
 } Inode;
 
 typedef struct directoryentry
@@ -246,7 +246,7 @@ int insertDirectoryEntry(std::vector<std::string>& pathVec, int parentInodeNum, 
     int i = 0;
     while (!inserted) //check the parent inodes pointers
     {
-        if (i == 30)
+        if (i == NUM_POINTERS)
         {
             //checked all pointers and not inserted anything
             //means we never found a 0 in the directory entry for any of the pointers (very unlikely)
@@ -299,7 +299,7 @@ bool directoryContainsName(int directoryInodeNum, std::string name)
     Disk_Read(inodeSector, (char*)nodeBlock);
     Inode curNode = nodeBlock[directoryInodeNum % NUM_INODES_PER_BLOCK];
 
-    for (int i = 0; i < 30; i++)
+    for (int i = 0; i < NUM_POINTERS; i++)
     {
         if (curNode.pointers[i] != 0)
         {
@@ -450,7 +450,7 @@ int File_Open(char *file)
 
     //Now that we have the parent inode, search the contents of its directory
     //for the file we're trying to open
-    for (int i = 0; i < 30; i++) //go through all the pointers
+    for (int i = 0; i < NUM_POINTERS; i++) //go through all the pointers
     {
         DirectoryEntry* dirBlock = (DirectoryEntry*)calloc(NUM_DIRECTORIES_PER_BLOCK, sizeof(DirectoryEntry));
         Disk_Read(parentInode.pointers[i], (char*)dirBlock);
@@ -503,7 +503,7 @@ int File_Write(int fd, void *buffer, int size)
     int filePointer = open.filepointer;
     
     //if the write completes, the size will be the curSize (filepointer) + size
-    if (filePointer + size > 30 * SECTOR_SIZE)
+    if (filePointer + size > NUM_POINTERS * SECTOR_SIZE)
     {
         osErrno = E_FILE_TOO_BIG;
         return -1;
@@ -644,7 +644,7 @@ void validateRoot()
     Disk_Read(ROOT_INODE_OFFSET, (char*)rootBlock);
     Inode rootNode = rootBlock[0];
     std::cout << "Root block filetype " << rootNode.fileType << " with pointers:\n";
-    for (int i = 0; i < 30; i++)
+    for (int i = 0; i < NUM_POINTERS; i++)
     {
         std::cout << rootNode.pointers[i] << " ";
     }
@@ -664,7 +664,7 @@ void printInodes()
             if (curNode.fileType == 1)
             {
                 std::cout << "Directory at inode #" << i << " with pointers:\n";
-                for (int k = 0; k < 30; k++)
+                for (int k = 0; k < NUM_POINTERS; k++)
                 {
                     std::cout << curNode.pointers[k] << " ";
                 }
@@ -672,4 +672,9 @@ void printInodes()
             }
         }
     }
+}
+
+int main()
+{
+    FS_Boot("image.fsfile");
 }

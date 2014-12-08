@@ -554,7 +554,7 @@ int File_Write(int fd, void *buffer, int size)
     newOf.filepointer = filePointer;
     it->second = newOf;
 
-    return 0;
+    return inodeBlock[open.inodeNum % NUM_INODES_PER_BLOCK].fileSize;
 }
 
 int File_Close(int fd)

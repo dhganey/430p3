@@ -7,8 +7,6 @@
 #include <math.h>
 #include <unordered_map>
 
-#define DEBUG false
-
 // global errno value here
 int osErrno;
 
@@ -18,7 +16,6 @@ char* magicString = "666";
 char* bootPath; //we'll populate this after boot so we can call sync
 
 //structs
-
 typedef struct superblock
 {
     char magic[4]; //one extra for \0
@@ -59,9 +56,9 @@ typedef struct openfile
 
 //Maps from file descriptors to open file structs
 typedef std::unordered_map<int, OpenFile> OpenFileMap;
-
 OpenFileMap openFileTable;
 
+//bitmaps
 Bitmap* inodeBitmap;
 Bitmap* dataBitmap;
 
@@ -82,6 +79,7 @@ Create_New_Disk(char* path)
         return ok;
     }
     
+    //prep the bitma[s
     inodeBitmap = (Bitmap*)calloc(1, sizeof(Bitmap));
     dataBitmap = (Bitmap*)calloc(1, sizeof(Bitmap));
 
@@ -159,11 +157,12 @@ int findFirstAvailableDataSector()
     }
 }
 
-//Searches the given inode for the current pathsegment
-//Recursive
+//Recursively searches the given inode for the current pathsegment
+//Returns the inode number of the parent of the end of the path
+//Example: given path /a/b/c, returns the inode num of b
 int searchInodeForPath(int inodeToSearch, std::vector<std::string>& path, int pathSegment)
 {
-    //Base case 1: If we're at the end of the path, we're already in the target node
+    //Base case: If we're at the end of the path, we're already in the target node
     //Just return!
     if (pathSegment + 1 == path.size())
     {
@@ -186,9 +185,23 @@ int searchInodeForPath(int inodeToSearch, std::vector<std::string>& path, int pa
         {
             DirectoryEntry curEntry = directoryBlock[j];
             std::string name(curEntry.name);
-            if (name.compare(path.at(pathSegment)) == 0) //if we find the next directory, recurse into it
-                //TODO this assumes it's actually a directory. but this might be recursing into a file, and that's going to cause serious problems
+            if (name.compare(path.at(pathSegment)) == 0)
             {
+                //we found something with the same name! but:
+                //we have to check and make sure this is actually a directory
+                //do this by loading the inode
+                Inode* innerNodeBlock = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
+                int innerInodeSector = (curEntry.inodeNum / NUM_INODES_PER_BLOCK) + ROOT_INODE_OFFSET;
+                Disk_Read(innerInodeSector, (char*)innerNodeBlock);
+                Inode innerCurNode = innerNodeBlock[curEntry.inodeNum % NUM_INODES_PER_BLOCK];
+                if (innerCurNode.fileType == 0)
+                {
+                    //if it's a file, it can't be a directory. we've been supplied with a bogus path like "/dir1/one.txt/dir2"
+                    osErrno = E_NO_SUCH_FILE;
+                    return -1;
+                }
+
+                //if it is a directory and it's got the same name, recurse and search it!
                 return searchInodeForPath(curEntry.inodeNum, path, pathSegment + 1);
             }
             //else continue
@@ -371,20 +384,6 @@ int File_Create(char *file)
 {
     printf("File_Create %s\n", file);
 
-    if (DEBUG)
-    {
-        std::cout << "Before creating file, verify the root node:" << std::endl;
-        Inode* rootNode = (Inode*)calloc(NUM_INODES_PER_BLOCK, sizeof(Inode));
-        Disk_Read(ROOT_INODE_OFFSET, (char*)rootNode);
-        Inode node = rootNode[0];
-        std::cout << "Root node has filetype " << node.fileType << " and pointers:" << std::endl;
-        for (int i = 0; i < 30; i++)
-        {
-            std::cout << node.pointers[i] << " ";
-        }
-        std::cout << std::endl;
-    }
-
     std::string pathStr(file);
     std::vector <std::string> pathVec = tokenizePathToVector(pathStr);
 
@@ -412,7 +411,6 @@ int File_Create(char *file)
     Disk_Write(newInodeSector, (char*)newNodeBlock);
 
     totalFilesAndDirectories++;
-
     return 0;
 }
 
@@ -515,12 +513,11 @@ int File_Write(int fd, void *buffer, int size)
     while (remainingSize > 0)
     {
         int filePointerForBlock = filePointer % SECTOR_SIZE;
-        FileData* writeBlock;
+        FileData* writeBlock = new FileData();
         int dataSector;
 
         if (filePointerForBlock == 0) //at the beginning, create a new one
         {
-            writeBlock = new FileData();
             dataSector = findFirstAvailableDataSector();
             inodeBlock[open.inodeNum % NUM_INODES_PER_BLOCK].pointers[filePointer / SECTOR_SIZE] = dataSector;
             Disk_Write(inodeSector, (char*)inodeBlock);
@@ -532,14 +529,30 @@ int File_Write(int fd, void *buffer, int size)
         }
 
         int remainingSizeBackup = remainingSize;
-        for (int i = filePointerForBlock; i < remainingSizeBackup && filePointerForBlock < SECTOR_SIZE; filePointerForBlock++, filePointer++, remainingSize--)
+        for (int i = filePointerForBlock, j = 0; filePointerForBlock < SECTOR_SIZE; i++, j++, filePointerForBlock++, filePointer++, remainingSize--)
         {
-            writeBlock->contents[i] = ((char*)buffer)[i];
+            if (remainingSize == 0)
+            {
+                break;
+            }
+            writeBlock->contents[i] = ((char*)buffer)[j];
         }
 
         Disk_Write(dataSector, (char*)writeBlock);
-        filePointer++;
+        //filePointer++;
     }
+
+    //update the files inode
+    inodeBlock[open.inodeNum % NUM_INODES_PER_BLOCK].fileSize += size;
+    Disk_Write(inodeSector, (char*)inodeBlock);
+
+    //update the open file table with the new filepointer
+    //we know we found that value so we can use the iterator per http://stackoverflow.com/questions/16291897/in-unordered-map-of-c11-how-to-update-the-value-of-a-particular-key
+    OpenFile newOf;
+    newOf.inodeNum = open.inodeNum;
+    newOf.filepointer = filePointer;
+    it->second = newOf;
+
     return 0;
 }
 
@@ -588,10 +601,6 @@ int Dir_Create(char *path)
 
         Disk_Write(ROOT_INODE_OFFSET, (char*)inodeBlock);
         Disk_Write(directorySector, (char*)directoryBlock);
-        if (DEBUG)
-        {
-            std::cout << "Created root directory " << std::endl;
-        }
     }
     else //otherwise, start at the root and find the appropriate spot
     {
@@ -603,6 +612,11 @@ int Dir_Create(char *path)
         inodeBlock[newInodeNum % NUM_INODES_PER_BLOCK].pointers[0] = directorySector;
 
         int parentInodeNum = searchInodeForPath(0, pathVec, 0);
+        if (parentInodeNum == -1)
+        {
+            osErrno = E_CREATE;
+            return -1;
+        }
         
         bool alreadyExists = directoryContainsName(parentInodeNum, pathVec.at(pathVec.size() - 1));
         if (alreadyExists)
@@ -615,19 +629,6 @@ int Dir_Create(char *path)
 
         //By this point, a directory entry for c has been entered into b's directory record
         //All that's left to do is write the inode and directory entry for the new directory
-        if (DEBUG)
-        {
-            std::cout << "Creating dir. Writing inode block containing:" << std::endl;
-            for (int i = 0; i < NUM_INODES_PER_BLOCK; i++)
-            {
-                std::cout << "Inode " << i << " filetype " << inodeBlock[i].fileType << " with pointers: " << std::endl;
-                for (int j = 0; j < 30; j++)
-                {
-                    std::cout << inodeBlock[i].pointers[j] << " ";
-                }
-                std::cout << std::endl;
-            }
-        }
         Disk_Write(newInodeSector, (char*)inodeBlock);
         Disk_Write(directorySector, (char*)directoryBlock);
     }
@@ -635,11 +636,6 @@ int Dir_Create(char *path)
     totalFilesAndDirectories++;
     return 0;
 }
-
-
-
-
-
 
 void validateRoot()
 {

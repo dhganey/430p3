@@ -509,6 +509,7 @@ int File_Write(int fd, void *buffer, int size)
         return -1;
     }
 
+    int bufferOffset = 0;
     int remainingSize = size;
     while (remainingSize > 0)
     {
@@ -529,13 +530,13 @@ int File_Write(int fd, void *buffer, int size)
         }
 
         int remainingSizeBackup = remainingSize;
-        for (int i = filePointerForBlock, j = 0; filePointerForBlock < SECTOR_SIZE; i++, j++, filePointerForBlock++, filePointer++, remainingSize--)
+        for (int i = filePointerForBlock; filePointerForBlock < SECTOR_SIZE; i++, bufferOffset++, filePointerForBlock++, filePointer++, remainingSize--)
         {
             if (remainingSize == 0)
             {
                 break;
             }
-            writeBlock->contents[i] = ((char*)buffer)[j];
+            writeBlock->contents[i] = ((char*)buffer)[bufferOffset];
         }
 
         Disk_Write(dataSector, (char*)writeBlock);

@@ -193,3 +193,6 @@ FakesAssemblies/
 #TeX files
 *.gz
 *.aux
+
+#Zip
+*.zip
